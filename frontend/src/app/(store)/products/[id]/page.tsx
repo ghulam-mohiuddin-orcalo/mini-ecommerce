@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { QuantitySelector } from '@/components/store/QuantitySelector';
+import { RecommendationsSection } from '@/components/store/RecommendationsSection';
 import { formatPrice } from '@/lib/format';
 import { ApiError } from '@/lib/api';
 import { useProduct } from '@/lib/hooks/useProducts';
+import { useRelatedProducts } from '@/lib/hooks/useRecommendations';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useAddToCart } from '@/lib/hooks/useCart';
 
@@ -18,6 +20,7 @@ export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { data: product, isLoading, isError, error, refetch } = useProduct(params.id);
+  const related = useRelatedProducts(params.id);
   const { data: user } = useMe();
   const addToCart = useAddToCart();
   const [qty, setQty] = useState(1);
@@ -111,6 +114,16 @@ export default function ProductDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {product && (
+        <div className="mt-16">
+          <RecommendationsSection
+            title="You might also like"
+            products={related.data?.items}
+            isLoading={related.isLoading}
+          />
+        </div>
+      )}
     </div>
   );
 }

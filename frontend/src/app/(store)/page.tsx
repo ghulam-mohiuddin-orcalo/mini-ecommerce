@@ -4,10 +4,15 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/States';
 import { ProductGrid, ProductGridSkeleton } from '@/components/store/ProductGrid';
+import { RecommendationsSection } from '@/components/store/RecommendationsSection';
 import { useProducts } from '@/lib/hooks/useProducts';
+import { useMe } from '@/lib/hooks/useAuth';
+import { useRecommendations } from '@/lib/hooks/useRecommendations';
 
 export default function HomePage() {
   const { data, isLoading, isError, refetch } = useProducts({ sort: 'newest', pageSize: 3 });
+  const { data: user } = useMe();
+  const recs = useRecommendations(user?.id ?? null);
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -29,7 +34,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="pb-20">
+      <section className="pb-16">
         <div className="mb-6 flex items-end justify-between">
           <h2 className="text-2xl font-semibold tracking-tight text-ink">New arrivals</h2>
           <Link href="/products" className="text-sm font-medium text-brand-700 hover:underline">
@@ -44,6 +49,14 @@ export default function HomePage() {
           <ProductGrid products={data?.data ?? []} />
         )}
       </section>
+
+      <div className="pb-20">
+        <RecommendationsSection
+          title={user ? 'Recommended for you' : 'Popular right now'}
+          products={recs.data?.items}
+          isLoading={recs.isLoading}
+        />
+      </div>
     </div>
   );
 }

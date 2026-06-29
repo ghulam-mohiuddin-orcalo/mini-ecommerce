@@ -203,6 +203,59 @@ build progresses (not at the end).
   storefront header for admins, so the two surfaces connect end-to-end. TanStack Query mutations
   invalidate the relevant caches (and the public catalog/analytics) so views stay consistent.
 
+### Recommendations (Milestone 7) — the open-ended requirement
+- **Requirement:** "customers should see product suggestions relevant to them." Implemented as a
+  **deterministic priority ladder** in a dedicated `RecommendationsService` — no ML, no
+  randomness, no opaque scoring, so the behaviour is obvious, testable, and right-sized for the
+  time budget:
+  1. **Purchase history** — popular active products in categories the customer has *purchased*
+     (non-cancelled orders), **excluding products they already own**.
+  2. **Cart** (only if there's no order history) — popular active products in the categories
+     currently in their cart, excluding the cart items themselves.
+  3. **Top sellers** — global best sellers by units, **topped up with the newest** active
+     products so the strip is never sparse on a low-traffic catalog. This is also the guest path.
+- **Why this design:** it literally targets "relevant to *them*" (category affinity from real
+  behaviour), reuses data we already have (orders, cart) with **no new schema**, and **degrades
+  gracefully** — a brand-new visitor still gets a sensible list. Returning a `strategy` enum
+  alongside the items makes the feature self-explaining and lets tests assert *why* a list was
+  chosen, not just its contents.
+- **"Popularity" is one definition everywhere:** total units sold across non-cancelled orders,
+  with **stable tie-breaks** (units desc → newest → id) so output is fully deterministic.
+- **Safety invariants:** inactive (soft-deleted) products are **never** recommended (every query
+  filters `isActive: true`); already-owned/in-cart products are excluded; results are capped at
+  **8**. If a chosen priority yields nothing after exclusions (e.g. the customer owns everything
+  in their one category), it falls through to top sellers rather than returning an empty strip.
+- **Product-detail context:** a second method, `getRelated(productId)`, returns other active
+  products in the **same category** (excluding the product itself), falling back to top sellers
+  for an unknown/lonely-category product — the "you might also like" strip.
+- **Optional auth:** `GET /recommendations` is `@Public()` but wrapped in a new
+  `OptionalJwtAuthGuard` (an `AuthGuard('jwt')` whose `handleRequest` never throws), so the
+  endpoint **personalizes when a valid cookie is present and serves guests otherwise** — exactly
+  what a home-page strip needs. `GET /recommendations/related/:productId` is fully public.
+- **Performance:** each call is a small, bounded set of indexed queries (one `groupBy` for
+  popularity + one `findMany` for the candidate set, with an over-fetch factor on top sellers to
+  survive inactive rows). Ranking/tie-breaking is done in-memory over at most a few dozen
+  candidates — no N+1, no per-product round trips.
+- **Frontend:** one reusable `RecommendationsSection` (reuses the standard `ProductGrid`/
+  `ProductCard`) that **renders nothing when empty** — wired into the **home page** ("Recommended
+  for you" / "Popular right now" for guests), the **product detail page** ("You might also like"),
+  and the **post-checkout** confirmation. The checkout mutation invalidates the `recommendations`
+  query so suggestions reflect the just-completed purchase.
+- **Trade-offs (deliberate):** category-affinity is a coarse signal — it won't capture
+  cross-category complements ("bought a tent → suggest a sleeping bag") or per-item similarity.
+  Popularity is computed on every request rather than precomputed, which is fine at this catalog
+  size but wouldn't scale to millions of orders. No collaborative filtering, no embeddings, no
+  recency/decay weighting. These are conscious omissions for a 5–6h build, not oversights.
+- **How it could evolve into a real engine:** (1) precompute a product→units-sold rollup
+  (materialized view / nightly job) and a category-affinity table per user, refreshed
+  incrementally; (2) add **item-to-item collaborative filtering** ("customers who bought X also
+  bought Y") from order co-occurrence; (3) introduce **content embeddings** (name/description/
+  image) for cold-start similarity; (4) blend signals with weights + recency decay behind the
+  same `strategy`-tagged interface, and (5) log impressions/clicks to evaluate and tune offline.
+  The current `RecommendationsService` interface (one personalized method, one related method,
+  both returning `{strategy, items}`) is the seam where any of these would slot in without
+  touching controllers or the frontend.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -342,6 +395,15 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - Frontend: `tsc --noEmit` clean and a full `next build` succeeds with the new `/admin`,
     `/admin/products`, and `/admin/orders` routes (admin dashboard carries Recharts, ~225 kB
     first load — acceptable for an admin-only screen).
+- **M7 (recommendations):**
+  - 6 e2e tests — guest→top sellers (active-only, popularity-ordered, inactive excluded);
+    purchase-history strategy (recommends same-category products, **excludes owned**, excludes
+    inactive); cart strategy for a new customer (recommends cart-category products, excludes the
+    cart item); **recommendations update after a purchase** (cart→history switch verified);
+    related-by-category (same category, excludes self + inactive + other categories); and
+    related-of-unknown-product fallback — **54 tests total**, full suite green.
+  - Frontend `tsc --noEmit` clean and full `next build` succeeds with the strips wired into home,
+    product detail, and post-checkout.
 
 ## Design workflow
 

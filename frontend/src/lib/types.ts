@@ -111,6 +111,18 @@ export interface Paginated<T> {
   meta: PaginationMeta;
 }
 
+export type RecommendationStrategy =
+  | 'PURCHASE_HISTORY'
+  | 'CART'
+  | 'TOP_SELLERS'
+  | 'RELATED_CATEGORY'
+  | 'NONE';
+
+export interface Recommendations {
+  strategy: RecommendationStrategy;
+  items: Product[];
+}
+
 export type ProductSort = 'newest' | 'price_asc' | 'price_desc';
 
 export interface ProductQuery {

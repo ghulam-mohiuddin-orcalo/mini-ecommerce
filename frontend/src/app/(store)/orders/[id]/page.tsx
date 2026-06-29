@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { OrderStatusBadge } from '@/components/store/OrderStatusBadge';
+import { RecommendationsSection } from '@/components/store/RecommendationsSection';
 import { ApiError } from '@/lib/api';
 import { formatDate, formatPrice } from '@/lib/format';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useOrder } from '@/lib/hooks/useOrders';
+import { useRecommendations } from '@/lib/hooks/useRecommendations';
 
 function OrderDetail() {
   const params = useParams<{ id: string }>();
@@ -18,6 +20,7 @@ function OrderDetail() {
   const justPlaced = searchParams.get('placed') === '1';
   const { data: user, isLoading: userLoading } = useMe();
   const { data: order, isLoading, isError, error, refetch } = useOrder(params.id, Boolean(user));
+  const recs = useRecommendations(user?.id ?? null);
 
   const notFound = isError && error instanceof ApiError && error.status === 404;
 
@@ -92,6 +95,16 @@ function OrderDetail() {
       <Link href="/orders" className="text-sm font-medium text-brand-700 hover:underline">
         ← All orders
       </Link>
+
+      {justPlaced && (
+        <div className="mt-8">
+          <RecommendationsSection
+            title="Recommended for you"
+            products={recs.data?.items}
+            isLoading={recs.isLoading}
+          />
+        </div>
+      )}
     </div>
   );
 }

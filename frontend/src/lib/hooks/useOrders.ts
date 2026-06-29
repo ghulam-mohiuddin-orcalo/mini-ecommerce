@@ -11,9 +11,11 @@ export function useCheckout() {
     mutationFn: (body: { paymentToken?: string }) =>
       apiFetch<Order>('/orders', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: () => {
-      // Cart was cleared server-side; refresh cart + order history.
+      // Cart was cleared server-side; refresh cart + order history. Recommendations are now
+      // informed by this purchase, so drop their cache too.
       void qc.invalidateQueries({ queryKey: ['cart'] });
       void qc.invalidateQueries({ queryKey: ['orders'] });
+      void qc.invalidateQueries({ queryKey: ['recommendations'] });
     },
   });
 }

@@ -99,8 +99,9 @@ search/category/price filters, sorting, pagination boundaries, 404s), and the ca
 isolation**), and checkout (transactional success, empty cart, payment decline, insufficient
 stock & inactive-product rollback, snapshot immutability, order ownership), and the admin panel
 (RBAC on every admin route, product create/edit/activate with duplicate-SKU & validation
-handling, the order state machine with cancellation restock, and analytics correctness) —
-48 tests total.
+handling, the order state machine with cancellation restock, and analytics correctness), and
+recommendations (purchase-history / cart / top-seller strategies, owned- and inactive-product
+exclusion, related-by-category, and refresh-after-purchase) — 54 tests total.
 
 ## API (so far)
 
@@ -115,6 +116,8 @@ handling, the order state machine with cancellation restock, and analytics corre
 | GET | `/products` | public | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
 | GET | `/products/categories` | public | Distinct categories |
 | GET | `/products/:id` | public | Single active product (404 if inactive/missing) |
+| GET | `/recommendations` | public (personalized if signed in) | Suggestions: purchase history → cart → top sellers |
+| GET | `/recommendations/related/:productId` | public | Related products in the same category |
 | GET | `/cart` | authenticated | Current user's cart with computed totals |
 | POST | `/cart/items` | authenticated | Add units (merges into existing line) |
 | PATCH | `/cart/items/:productId` | authenticated | Set absolute quantity for a line |
