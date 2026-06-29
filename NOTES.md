@@ -97,6 +97,37 @@ build progresses (not at the end).
 - **Add-to-cart on the detail page is intentionally deferred to M4** (it needs the cart backend)
   — no dead buttons shipped in M3.
 
+### Cart (Milestone 4) — end-to-end, integrity-first
+- **Server-side persistent cart, one per user** (`Cart.userId` unique). Lines are unique per
+  `(cartId, productId)`, so a repeat add **merges** into the existing line — no duplicates.
+- **Totals are never trusted from the client.** `buildCartResponse` is the single source of
+  truth and always recomputes line/grand totals from the **current product price**; the cart
+  stores only `(productId, quantity)`.
+- **Ownership is structural:** every operation is scoped to `req.user.id` from the JWT. There is
+  no `userId`/`cartId` parameter to address another user's cart, and `forbidNonWhitelisted`
+  rejects a client-supplied `userId` (422). Proven by e2e isolation tests.
+- **Validation on every mutation:** product must exist and be active (404 otherwise); quantity
+  must be ≥ 1 (422); the resulting quantity must fit in stock (409). Add/update run in a Prisma
+  **transaction**.
+- **Race conditions & stock consistency (deliberate design):** the cart is a *staging area*, not
+  a stock reservation. Cart writes validate against current stock best-effort, but the cart
+  **never decrements stock**. The authoritative, atomic stock decrement happens at **checkout
+  (M5)** inside a transaction with a conditional decrement — that is where overselling is
+  actually prevented. Reserving stock at add-to-cart time would let abandoned carts lock
+  inventory, so it's intentionally avoided. A line whose stock later drops below its quantity is
+  flagged `available: false` for the UI and will be re-validated at checkout.
+- **Module isolation:** `CartModule` doesn't depend on `ProductsModule`; the one-line
+  active-product predicate is duplicated intentionally so cart stays self-contained and checkout
+  can build directly on it.
+- **Frontend (fully integrated):** product-detail add-to-cart (quantity selector + success
+  feedback + sign-in gating), a cart page (line totals, grand total, quantity update, remove,
+  clear, empty/loading/error states), and a live cart-count badge in the header. **Mutations are
+  not optimistic** — each returns the server-recomputed cart, which is written straight to the
+  query cache (correctness over guesswork, as requested).
+- **Auth UI enabler:** since the cart is per-user, M4 also added the minimal frontend auth layer
+  needed to use it — `useMe`/login/signup/logout hooks and `/login` + `/signup` pages — so the
+  feature is genuinely integrated rather than a backend-only endpoint.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -190,6 +221,18 @@ Nothing is accepted on a green build alone. Verification performed so far:
     returns the catalog; `/`, `/products`, filtered URLs, and detail pages all return 200.
   - Lighthouse not run in this sandbox (no browser); the build is optimized (≈124–126 kB first
     load, lazy images, skeletons to limit CLS) — left as a manual check.
+- **M4 (cart):**
+  - 10 cart e2e tests (add, merge, exceed-stock 409, inactive 404, client-`userId` 422,
+    zero/negative 422, update, remove, and **ownership isolation** proving B can't see/affect
+    A's cart) — 31 tests total, run `--runInBand`.
+  - Manually verified the whole matrix against the seed: add the same product twice (merges),
+    update, remove, exceed stock (409, cart unchanged), inactive product (404), unauthorized
+    (401), and totals correct after every operation.
+  - **Verified the full cart flow through the Next proxy** (login → add → get cart via
+    `:3000/api`, totals correct) and that `/cart`, `/login`, `/signup` pages load.
+  - Minor agent slips caught by the build/tests before commit: an `unknown`-typed test helper
+    arg and a `void` mutation generic (both surfaced by `tsc`), and a premature `/admin` header
+    link removed in self-review (route doesn't exist until M6).
 
 ## Design workflow
 

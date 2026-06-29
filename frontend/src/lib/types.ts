@@ -1,3 +1,31 @@
+export type Role = 'ADMIN' | 'CUSTOMER';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+}
+
+export interface CartLine {
+  productId: string;
+  name: string;
+  imageUrl: string;
+  category: string;
+  unitPriceCents: number;
+  quantity: number;
+  lineTotalCents: number;
+  stock: number;
+  available: boolean;
+}
+
+export interface Cart {
+  id: string | null;
+  items: CartLine[];
+  totalCents: number;
+  itemCount: number;
+}
+
 export interface Product {
   id: string;
   name: string;

@@ -84,8 +84,10 @@ DATABASE_URL="postgresql://shop:shop@localhost:5432/mini_ecommerce_test?schema=p
 ```
 
 Current coverage: authentication & authorization (signup/login, invalid credentials,
-invalid/expired JWT, logout, RBAC) and the product catalog (active-only visibility,
-search/category/price filters, sorting, pagination boundaries, 404s) — 21 tests total.
+invalid/expired JWT, logout, RBAC), the product catalog (active-only visibility,
+search/category/price filters, sorting, pagination boundaries, 404s), and the cart
+(add/merge/update/remove, stock & active validation, totals, and **cross-user ownership
+isolation**) — 31 tests total.
 
 ## API (so far)
 
@@ -100,6 +102,11 @@ search/category/price filters, sorting, pagination boundaries, 404s) — 21 test
 | GET | `/products` | public | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
 | GET | `/products/categories` | public | Distinct categories |
 | GET | `/products/:id` | public | Single active product (404 if inactive/missing) |
+| GET | `/cart` | authenticated | Current user's cart with computed totals |
+| POST | `/cart/items` | authenticated | Add units (merges into existing line) |
+| PATCH | `/cart/items/:productId` | authenticated | Set absolute quantity for a line |
+| DELETE | `/cart/items/:productId` | authenticated | Remove a line |
+| DELETE | `/cart` | authenticated | Clear the cart |
 
 ## Useful commands (backend)
 
