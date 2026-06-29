@@ -1,29 +1,27 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { EmptyState, ErrorState } from '@/components/ui/States';
+import { EmptyState } from '@/components/ui/States';
 import { formatPrice } from '@/lib/format';
 import { ApiError } from '@/lib/api';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useCart } from '@/lib/hooks/useCart';
-import { MOCK_DECLINE_TOKEN, useCheckout } from '@/lib/hooks/useOrders';
+import { useCreateCheckoutSession } from '@/lib/hooks/usePayments';
 
 export default function CheckoutPage() {
-  const router = useRouter();
   const { data: user, isLoading: userLoading } = useMe();
   const { data: cart, isLoading } = useCart(Boolean(user));
-  const checkout = useCheckout();
-  const [simulateDecline, setSimulateDecline] = useState(false);
+  const createSession = useCreateCheckoutSession();
 
-  const placeOrder = () => {
-    checkout.mutate(
-      { paymentToken: simulateDecline ? MOCK_DECLINE_TOKEN : undefined },
-      { onSuccess: (order) => router.push(`/orders/${order.id}?placed=1`) },
-    );
+  const proceedToPayment = () => {
+    createSession.mutate(undefined, {
+      // Full-page navigation to Stripe's hosted Checkout (not router.push — it's an external URL).
+      onSuccess: (session) => {
+        window.location.href = session.url;
+      },
+    });
   };
 
   if (userLoading) return <Shell><Skeleton className="h-48 w-full" /></Shell>;
@@ -52,6 +50,9 @@ export default function CheckoutPage() {
       </Shell>
     );
   }
+
+  // While Stripe redirects, keep the button busy so a slow network can't double-submit.
+  const busy = createSession.isPending || createSession.isSuccess;
 
   return (
     <Shell>
@@ -95,24 +96,14 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-base font-extrabold tracking-tight text-ink">Payment</h2>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-warning-soft)] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.04em] text-[var(--color-warning-ink)]">
-                Mock — no card charged
+                Stripe — test mode
               </span>
             </div>
             <p className="mt-2.5 text-[13px] leading-relaxed text-muted">
-              This is a demo payment flow. No real card is charged when you place the order.
+              You’ll be redirected to Stripe’s secure Checkout to pay. No order is created until
+              Stripe confirms your payment. Use test card <span className="font-semibold text-ink">4242 4242 4242 4242</span>,
+              any future expiry, and any CVC.
             </p>
-            <label className="mt-4 flex cursor-pointer items-center gap-3 rounded-xl border border-line bg-field p-3.5">
-              <input
-                type="checkbox"
-                checked={simulateDecline}
-                onChange={(e) => setSimulateDecline(e.target.checked)}
-                className="h-5 w-5 shrink-0 rounded-md border-[#c7bfb1] text-brand-600 accent-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-              />
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold text-ink">Simulate a declined payment</span>
-                <span className="text-xs text-muted">Tests the error state end-to-end.</span>
-              </span>
-            </label>
           </div>
         </section>
 
@@ -139,18 +130,20 @@ export default function CheckoutPage() {
             </span>
           </div>
 
-          {checkout.isError && (
+          {createSession.isError && (
             <p role="alert" className="mt-3 text-sm text-[color:var(--color-danger)]">
-              {checkout.error instanceof ApiError ? checkout.error.message : 'Checkout failed'}
+              {createSession.error instanceof ApiError
+                ? createSession.error.message
+                : 'Could not start payment'}
             </p>
           )}
 
-          <Button onClick={placeOrder} disabled={checkout.isPending} size="lg" className="mt-[18px] w-full">
+          <Button onClick={proceedToPayment} disabled={busy} size="lg" className="mt-[18px] w-full">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
               <rect x="2" y="5" width="20" height="14" rx="2.5" />
               <path d="M2 10h20" />
             </svg>
-            {checkout.isPending ? 'Placing order…' : `Pay ${formatPrice(cart.totalCents)}`}
+            {busy ? 'Redirecting to Stripe…' : 'Proceed to Payment'}
           </Button>
           <Link href="/cart" className="mt-3 block text-center text-sm text-muted hover:underline">
             Back to cart
@@ -160,7 +153,7 @@ export default function CheckoutPage() {
               <rect x="4" y="11" width="16" height="9" rx="2" />
               <path d="M8 11V7a4 4 0 0 1 8 0v4" />
             </svg>
-            Secured checkout
+            Secured by Stripe
           </p>
         </aside>
       </div>

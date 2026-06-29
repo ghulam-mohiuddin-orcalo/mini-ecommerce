@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 import { PAYMENT_PROVIDER, PaymentProvider } from '../payments/payment.interface';
 import { CheckoutDto } from './dto/checkout.dto';
-import { OrderResponseDto, toOrderResponse } from './dto/order-response.dto';
+import { OrderResponseDto, OrderWithItems, toOrderResponse } from './dto/order-response.dto';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import {
   AdminOrderResponseDto,
@@ -36,21 +36,37 @@ export class OrdersService {
   ) {}
 
   /**
-   * Checkout — the integrity core. Everything below happens inside ONE interactive
-   * transaction, so any failure (inactive product, insufficient stock, declined payment)
-   * rolls the whole thing back: no order, no stock change, cart untouched.
+   * The integrity core, shared by every checkout path. Everything happens inside ONE
+   * interactive transaction, so any failure (inactive product, insufficient stock, declined
+   * payment) rolls the whole thing back: no order, no stock change, cart untouched.
    *
    * Steps, in order:
-   *  1. Load the cart (must be non-empty).
-   *  2. For each line: re-read the product, snapshot its CURRENT price/name, and atomically
-   *     decrement stock with a conditional update that is the real oversell guard.
-   *  3. Compute the authoritative total server-side from the snapshots.
-   *  4. Charge the (mock) payment; a decline throws and rolls everything back.
-   *  5. Create the Order + OrderItems from the snapshots and persist the total.
-   *  6. Clear the cart — reached only on success, so it commits atomically with the order.
+   *  1. (Stripe) Idempotency short-circuit: if this Checkout Session already produced an order,
+   *     return it untouched — duplicate webhook deliveries never double-fulfil.
+   *  2. Load the cart (must be non-empty).
+   *  3. For each line: re-read the product from the DB (never trust client/cart prices),
+   *     snapshot its CURRENT price/name, and atomically decrement stock with a conditional
+   *     update that is the real oversell guard.
+   *  4. Compute the authoritative total server-side from the snapshots.
+   *  5. `settle(total)` records/validates payment. Mock charge runs here (a decline throws and
+   *     rolls back); for Stripe, payment is already captured, so this just returns its reference.
+   *  6. Create the Order + OrderItems from the snapshots and persist the total.
+   *  7. Clear the cart — reached only on success, so it commits atomically with the order.
    */
-  async checkout(userId: string, dto: CheckoutDto): Promise<OrderResponseDto> {
-    const order = await this.prisma.$transaction(async (tx) => {
+  private createOrderFromCart(
+    userId: string,
+    settle: (totalCents: number) => Promise<{ reference: string | null }>,
+    opts: { stripeSessionId?: string } = {},
+  ): Promise<OrderWithItems> {
+    return this.prisma.$transaction(async (tx) => {
+      if (opts.stripeSessionId) {
+        const existing = await tx.order.findUnique({
+          where: { stripeSessionId: opts.stripeSessionId },
+          include: { items: true },
+        });
+        if (existing) return existing;
+      }
+
       const cart = await tx.cart.findUnique({ where: { userId }, include: { items: true } });
       if (!cart || cart.items.length === 0) {
         throw new BadRequestException('Your cart is empty');
@@ -93,19 +109,16 @@ export class OrdersService {
         });
       }
 
-      // Charge for the server-computed total (mock). A decline rolls back the whole tx.
-      const payment = await this.payment.charge({ amountCents: totalCents, token: dto.paymentToken });
-      if (payment.status === 'failed') {
-        throw new PaymentRequiredException(payment.failureReason ?? 'Payment failed');
-      }
+      const { reference } = await settle(totalCents);
 
       const created = await tx.order.create({
         data: {
           userId,
           status: OrderStatus.PENDING,
           totalCents,
-          paymentRef: payment.reference,
+          paymentRef: reference,
           paidAt: new Date(),
+          stripeSessionId: opts.stripeSessionId ?? null,
           items: { create: prepared },
         },
         include: { items: true },
@@ -116,7 +129,68 @@ export class OrdersService {
 
       return created;
     });
+  }
 
+  /**
+   * Mock checkout (legacy / non-Stripe path). Charges the swappable PaymentProvider inside the
+   * transaction; a decline rolls everything back. Retained so the transactional core stays
+   * exercised and swappable — the Stripe path below reuses the very same core.
+   */
+  async checkout(userId: string, dto: CheckoutDto): Promise<OrderResponseDto> {
+    const order = await this.createOrderFromCart(userId, async (totalCents) => {
+      const payment = await this.payment.charge({ amountCents: totalCents, token: dto.paymentToken });
+      if (payment.status === 'failed') {
+        throw new PaymentRequiredException(payment.failureReason ?? 'Payment failed');
+      }
+      return { reference: payment.reference };
+    });
+    return toOrderResponse(order);
+  }
+
+  /**
+   * Fulfil a paid Stripe Checkout Session — the ONLY way a Stripe order is created, and only
+   * after Stripe has confirmed payment (called from the verified webhook and the success-page
+   * reconciliation). Reuses the transactional core: re-reads products, re-validates stock, and
+   * recomputes the total server-side; payment is already captured, so nothing is charged here.
+   *
+   * Idempotent two ways: the in-transaction lookup on `stripeSessionId` returns an existing
+   * order, and the UNIQUE constraint on that column makes a concurrent double-delivery race
+   * safe — the loser's whole transaction (including its stock decrements) rolls back, so the
+   * order is created EXACTLY ONCE and stock is decremented exactly once.
+   */
+  async fulfillStripeCheckout(input: {
+    sessionId: string;
+    userId: string;
+    paymentRef: string | null;
+  }): Promise<OrderResponseDto> {
+    try {
+      const order = await this.createOrderFromCart(
+        input.userId,
+        () => Promise.resolve({ reference: input.paymentRef }),
+        { stripeSessionId: input.sessionId },
+      );
+      return toOrderResponse(order);
+    } catch (e) {
+      // Concurrent duplicate delivery lost the UNIQUE race — return the winner's order.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const existing = await this.prisma.order.findUnique({
+          where: { stripeSessionId: input.sessionId },
+          include: { items: true },
+        });
+        if (existing) return toOrderResponse(existing);
+      }
+      throw e;
+    }
+  }
+
+  /** Look up an order by its Stripe Checkout Session id (success-page reconciliation). */
+  async findByStripeSession(userId: string, sessionId: string): Promise<OrderResponseDto | null> {
+    const order = await this.prisma.order.findUnique({
+      where: { stripeSessionId: sessionId },
+      include: { items: true },
+    });
+    // Ownership guard: never reveal another user's order via a guessed session id.
+    if (!order || order.userId !== userId) return null;
     return toOrderResponse(order);
   }
 

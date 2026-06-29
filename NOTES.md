@@ -256,6 +256,67 @@ build progresses (not at the end).
   both returning `{strategy, items}`) is the seam where any of these would slot in without
   touching controllers or the frontend.
 
+### Stripe Checkout (payment upgrade) — Test Mode, reuse the integrity core
+- **What changed:** the mocked in-process payment was replaced with **Stripe Checkout (Test
+  Mode)**. The *integrity core was not rewritten* — the same transactional `createOrderFromCart`
+  (re-read products → atomic stock decrement → server-side total → create order/items → clear
+  cart) now backs both paths. Stripe fulfilment is a thin new entry point into it.
+- **Why Stripe Checkout, not Stripe Elements (the key decision):**
+  - **PCI scope.** Checkout is **Stripe-hosted** — the PAN is entered on Stripe's domain and never
+    touches our servers or even our DOM, keeping us in the simplest **SAQ-A** bracket. Elements
+    embeds Stripe-hosted iframes in *our* page: lower friction visually, but more integration
+    surface (we own the payment form, its state, confirmation, and error handling).
+  - **Coverage for free.** Checkout handles **3DS/SCA**, wallets (Apple/Google Pay), address/tax
+    fields, promotion codes, emailed receipts, and localization out of the box. With Elements we'd
+    wire `PaymentIntent` confirmation, `next_action`/3DS, and each payment method ourselves.
+  - **Right-sized.** This is a breadth-first assessment; Checkout is the **most payment coverage
+    for the least code**, and it maps cleanly onto our existing server-authoritative model: we
+    hand Stripe a set of line items priced from the DB and let it run the UI. Elements is the right
+    call when you need a bespoke in-page payment UX — not a goal here.
+  - **Same security posture either way.** Both verify webhooks and keep the secret key server-side;
+    Checkout simply removes the card-handling surface entirely.
+- **Server-authoritative, prices never trusted:** `POST /payments/checkout-session` loads the
+  user's cart and builds Stripe `line_items` with `unit_amount = product.priceCents` read **from
+  the DB at request time** — the client sends nothing but its cookie. `userId` + `cartId` go into
+  the session **metadata** (and the PaymentIntent metadata) so fulfilment binds to the right
+  cart/user.
+- **Order is created only after Stripe confirms payment.** Creating the session changes nothing.
+  The order is created exclusively from a **verified** `checkout.session.completed` whose
+  `payment_status === 'paid'`. The webhook (`POST /payments/webhook`, `@Public()`):
+  1. **verifies the signature** against the *raw* request body (`NestFactory({ rawBody: true })`)
+     using `STRIPE_WEBHOOK_SECRET` — an invalid/missing signature is **400** and never processed;
+  2. **re-reads products, re-validates stock, recomputes the total** server-side, then runs the
+     existing transaction to **decrement stock, create the order + items, and clear the cart** —
+     any failure rolls the whole thing back, so a failed validation creates no order.
+- **Exactly-once / idempotency (3 layers):** `Order.stripeSessionId` is **UNIQUE**; the
+  transaction first short-circuits if an order for that session already exists; and a concurrent
+  double-delivery that races past the check loses on the unique index (P2002) and returns the
+  winner's order. So duplicate webhook deliveries — which Stripe *will* send — never double-create
+  an order or double-decrement stock.
+- **Reliable without a webhook forwarder:** the success page (`/checkout/success?session_id=…`)
+  polls `GET /payments/checkout-session/:id`, which returns the fulfilled order if the webhook
+  already ran, **or** retrieves the session from Stripe and fulfils it then (idempotently, ownership
+  checked). Both paths converge on the same `fulfillStripeCheckout`, so local dev works whether or
+  not `stripe listen` is running, and the order is still created exactly once.
+- **Business vs transient failure handling:** at fulfilment, a permanent business failure
+  (cart emptied, out-of-stock) is **logged and acknowledged with 200** (so Stripe stops retrying a
+  hopeless event — a production system would refund here); an unexpected error bubbles up as **500**
+  so Stripe retries. The payment is already captured, so the Stripe path's `settle()` just returns
+  the PaymentIntent reference rather than charging.
+- **Secrets & config:** `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` are server-only env vars
+  (never shipped to the browser); only the `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is public by
+  design. Test Mode only (`sk_test_…` / `whsec_…`). If the secret key is absent the app still boots
+  and Stripe calls return **503** — payments are simply disabled, handy for non-payment dev.
+- **Frontend:** the checkout page's mock panel became a single **"Proceed to Payment"** button that
+  creates the session and `window.location`-redirects to Stripe's hosted page; new
+  `/checkout/success` (polls, then forwards to the existing `/orders/[id]?placed=1` confirmation)
+  and `/checkout/cancel` (no charge, cart intact) return pages. The hosted-redirect approach means
+  no `@stripe/stripe-js` dependency is needed on the client.
+- **Mock path retained, not deleted:** `OrdersService.checkout` (the `tok_decline`-testable mock)
+  and its `PaymentProvider` interface stay in place behind the same core, so the transactional
+  logic stays swappable and its e2e tests keep exercising the rollback paths — the Stripe upgrade
+  is additive, not a rewrite of unrelated code.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -272,8 +333,10 @@ build progresses (not at the end).
 - **httpOnly JWT cookie + Next.js `/api/*` rewrite proxy** so the browser is always same-origin:
   the token is never readable by JS (XSS-safe) and `SameSite=Lax` covers CSRF, with no
   cross-site cookie pain.
-- **Mocked payment behind an interface** (chosen, spec-allowed) instead of real Stripe — keeps
-  the build inside the time budget while remaining swappable.
+- **Stripe Checkout (Test Mode)** for payment, layered onto the existing swappable
+  `PaymentProvider`/transactional core (the mock path is retained behind the same core). Hosted
+  Checkout was chosen over Elements to keep card data off our servers (PCI SAQ-A) and get
+  3DS/wallets/receipts for free — see the dedicated section above.
 - **Tailwind v4 + custom design tokens** ("Linen & Pine") instead of an off-the-shelf UI kit,
   per the assessment's design requirement.
 
@@ -415,6 +478,23 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - **Next.js App Router UX** — added root `loading.tsx`, `error.tsx` (error boundary wired to
     `reset()`), and `not-found.tsx`, all reusing the existing `Skeleton`/`ErrorState`/
     `EmptyState` primitives for a consistent look.
+- **Stripe Checkout (payment upgrade):**
+  - **Unit tests (DB-free, no live Stripe)** for the webhook handler — invalid signature → 400 and
+    never fulfilled; missing signature → 400; paid `checkout.session.completed` → fulfils exactly
+    once with the right metadata; **duplicate delivery** routes to the idempotent core both times;
+    out-of-stock at fulfilment → acknowledged (200) with no order; unexpected error → re-thrown
+    (500, Stripe retries); unpaid/unrelated events ignored. 8 tests (20 unit total). The
+    exactly-once / stock-decremented-once integrity itself is the existing transactional core,
+    already covered by the checkout e2e suite.
+  - **Manual end-to-end (Stripe CLI + test card 4242…):** successful payment creates the order
+    once, decrements stock, and clears the cart; **cancel** returns to `/checkout/cancel` with the
+    cart intact and no order; **invalid signature** (tampered payload) → 400, not processed;
+    **duplicate webhook** (`stripe trigger` / re-sent event) creates no second order;
+    **out-of-stock during webhook** (stock zeroed before fulfilment) creates no order and the paid
+    session is logged for refund; **cart cleared only after** the webhook fulfils, never at session
+    creation.
+  - Frontend `tsc --noEmit` clean and a full `next build` succeeds with the new
+    `/checkout/success` and `/checkout/cancel` routes.
 
 ## Design workflow
 
@@ -448,8 +528,10 @@ Nothing is accepted on a green build alone. Verification performed so far:
 - **Built fully so far:** project scaffolding, the Next→Nest proxy, the design-system
   foundation, and the complete data layer (schema, migrations, idempotent realistic seed) with
   relational + value integrity verified.
-- **Deliberately simplified:** payment is mocked; images are URLs; categories are strings.
+- **Deliberately simplified:** images are URLs; categories are strings. (Payment is now **Stripe
+  Checkout in Test Mode**; the mock provider is kept behind the same core for the rollback tests.)
 - **Known future work:** migrate the Prisma seed config to `prisma.config.ts` (the
   `package.json#prisma` key is deprecated in Prisma 7; harmless on the pinned v6); add a
-  `Category` entity if category management is needed; optionally wire Stripe test mode and file
-  upload; frontend component tests.
+  `Category` entity if category management is needed; persist a record of refunds/failed
+  fulfilments (today an unfulfillable paid session is logged for manual refund); file upload;
+  frontend component tests.

@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
+import { StripeModule } from './payments/stripe.module';
 import { AdminModule } from './admin/admin.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 
@@ -31,6 +32,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
     ProductsModule,
     CartModule,
     OrdersModule,
+    StripeModule,
     AdminModule,
     RecommendationsModule,
   ],

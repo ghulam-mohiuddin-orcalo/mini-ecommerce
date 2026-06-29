@@ -5,7 +5,10 @@ import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // `rawBody: true` buffers the unparsed request body (req.rawBody) so the Stripe webhook can
+  // verify signatures against the exact bytes Stripe signed. JSON parsing still happens for
+  // every other route as normal.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.use(helmet());
   app.use(cookieParser());
