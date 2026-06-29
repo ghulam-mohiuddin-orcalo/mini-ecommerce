@@ -29,6 +29,15 @@ export function StoreHeader() {
 
         <nav className="flex items-center gap-1 text-sm">
           <Link
+            href="/"
+            className={cn(
+              'rounded-lg px-3.5 py-2 font-semibold transition-colors',
+              pathname === '/' ? 'text-ink' : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+            )}
+          >
+            Home
+          </Link>
+          <Link
             href="/products"
             className={cn(
               'rounded-lg px-3.5 py-2 font-semibold transition-colors',
@@ -39,6 +48,19 @@ export function StoreHeader() {
           >
             Shop
           </Link>
+          {user && user.role !== 'ADMIN' && (
+            <Link
+              href="/orders"
+              className={cn(
+                'rounded-lg px-3.5 py-2 font-semibold transition-colors',
+                pathname.startsWith('/orders')
+                  ? 'text-ink'
+                  : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+              )}
+            >
+              Orders
+            </Link>
+          )}
           <Link
             href="/cart"
             className={cn(

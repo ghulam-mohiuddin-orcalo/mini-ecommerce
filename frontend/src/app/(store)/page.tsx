@@ -65,12 +65,20 @@ export default function HomePage() {
           </dl>
         </div>
 
-        {/* Decorative brand panel */}
+        {/* Brand panel — curated-goods photo under a brand-tinted overlay */}
         <div
           aria-hidden="true"
           className="pp-rise-delay relative hidden aspect-square overflow-hidden rounded-2xl shadow-[var(--shadow-panel)] lg:block"
-          style={{ background: 'linear-gradient(150deg,#244B3C,#2C5D4A 45%,#3C775E)' }}
         >
+          <img
+            src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1000&h=1000&fit=crop&q=80"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(150deg,rgba(36,75,60,.88),rgba(44,93,74,.6) 45%,rgba(60,119,94,.42))' }}
+          />
           <div
             className="absolute inset-0"
             style={{ background: 'radial-gradient(120% 80% at 80% 10%,rgba(199,154,82,.32),transparent 55%)' }}

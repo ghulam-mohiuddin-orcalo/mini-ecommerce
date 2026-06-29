@@ -25,11 +25,17 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
       <div className="grid overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)] md:grid-cols-2">
-        {/* Brand panel */}
-        <div
-          className="relative hidden flex-col justify-between overflow-hidden p-7 md:flex"
-          style={{ background: 'linear-gradient(160deg,#244B3C,#2C5D4A)' }}
-        >
+        {/* Brand panel — interior photo under a brand-tinted overlay */}
+        <div className="relative hidden flex-col justify-between overflow-hidden p-7 md:flex">
+          <img
+            src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&h=1100&fit=crop&q=80"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(160deg,rgba(36,75,60,.9),rgba(44,93,74,.7))' }}
+          />
           <div
             className="absolute inset-0"
             style={{ background: 'radial-gradient(120% 80% at 90% 0%,rgba(199,154,82,.28),transparent 55%)' }}
