@@ -118,11 +118,15 @@ export default function CartPage() {
               <dt className="text-ink">Total</dt>
               <dd className="text-brand-700">{formatPrice(cart.totalCents)}</dd>
             </dl>
-            <p className="mt-3 text-xs text-muted">Checkout arrives in the next step.</p>
+            <Link href="/checkout" className="mt-4 block">
+              <Button className="w-full" size="lg">
+                Proceed to checkout
+              </Button>
+            </Link>
             <button
               onClick={() => clearCart.mutate()}
               disabled={clearCart.isPending}
-              className="mt-4 w-full text-sm font-medium text-muted hover:text-[color:var(--color-danger)]"
+              className="mt-3 w-full text-sm font-medium text-muted hover:text-[color:var(--color-danger)]"
             >
               Clear cart
             </button>

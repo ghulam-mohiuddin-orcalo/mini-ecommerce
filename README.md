@@ -70,6 +70,15 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 Seed data also includes 14 products across 5 categories (Apparel, Home, Electronics, Books,
 Outdoors), 5 orders spanning every status, and a populated cart for the customer.
 
+## Payment (mock)
+
+Checkout uses a **mock payment provider** — no real charges. It succeeds by default and returns
+a synthetic reference. To exercise the failure path, the checkout page has a **"Simulate a
+declined payment"** toggle (it sends the documented token `tok_decline`); a declined payment
+rolls back the whole transaction — no order is created and no stock is changed. The provider sits
+behind a `PaymentProvider` interface, so a real gateway (e.g. Stripe test mode) could be dropped
+in without changing the checkout flow.
+
 ## Testing
 
 Backend e2e tests (Jest + Supertest) run against a **dedicated test database** so they never
@@ -87,7 +96,8 @@ Current coverage: authentication & authorization (signup/login, invalid credenti
 invalid/expired JWT, logout, RBAC), the product catalog (active-only visibility,
 search/category/price filters, sorting, pagination boundaries, 404s), and the cart
 (add/merge/update/remove, stock & active validation, totals, and **cross-user ownership
-isolation**) — 31 tests total.
+isolation**), and checkout (transactional success, empty cart, payment decline, insufficient
+stock & inactive-product rollback, snapshot immutability, order ownership) — 38 tests total.
 
 ## API (so far)
 
@@ -107,6 +117,9 @@ isolation**) — 31 tests total.
 | PATCH | `/cart/items/:productId` | authenticated | Set absolute quantity for a line |
 | DELETE | `/cart/items/:productId` | authenticated | Remove a line |
 | DELETE | `/cart` | authenticated | Clear the cart |
+| POST | `/orders` | authenticated | Checkout: create an order from the cart (transactional) |
+| GET | `/orders` | authenticated | Current user's order history |
+| GET | `/orders/:id` | authenticated | One of the user's own orders (404 otherwise) |
 
 ## Useful commands (backend)
 

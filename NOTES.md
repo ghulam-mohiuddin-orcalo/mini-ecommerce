@@ -128,6 +128,44 @@ build progresses (not at the end).
   needed to use it — `useMe`/login/signup/logout hooks and `/login` + `/signup` pages — so the
   feature is genuinely integrated rather than a backend-only endpoint.
 
+### Checkout (Milestone 5) — the integrity core
+- **One interactive Prisma transaction** wraps the entire checkout: load cart → per line
+  re-read the product, snapshot its current price/name/image, and **atomically decrement stock**
+  → compute the authoritative total server-side → charge (mock) → create Order + OrderItems →
+  clear the cart. Any failure `throw`s and Prisma rolls back **everything**.
+- **Atomic stock decrement (oversell guard):** `updateMany WHERE id, isActive, stock >= qty →
+  decrement`, then assert `count === 1`. This is the real gate — it serializes at the row level,
+  so concurrent checkouts can't oversell, without needing Serializable isolation (which would
+  force retry handling). The preceding `findUnique` is only for the price/name snapshot.
+- **Money:** integer cents end to end. The total is computed server-side from the **re-read**
+  prices (never from the cart or client); `order.totalCents` is persisted as the authoritative
+  charged amount and always equals the sum of line totals (asserted in tests).
+- **Snapshots:** `OrderItem` stores name/image/category/unit price at order time, so later
+  product edits never change historical orders (verified).
+- **Payment placement (deliberate):** since the mock provider is in-process and synchronous, the
+  charge runs **inside** the transaction — a decline simply throws and the whole tx rolls back,
+  which is exactly "failed payment creates no order and changes no stock." Documented that a real
+  provider would charge **outside** the tx and issue a compensating refund on failure; the
+  `PaymentProvider` interface (`payments/`) makes that swap a one-file change. Failure is explicit
+  and testable via the `tok_decline` token.
+- **Order history & ownership:** `GET /orders` is scoped to `req.user.id`; `GET /orders/:id` uses
+  `findFirst({ id, userId })` and returns **404** (not 403) for someone else's order, so existence
+  isn't leaked.
+- **Frontend (integrated):** checkout page (summary + mock-payment panel with a decline toggle),
+  order confirmation (the order detail page with a success banner via `?placed=1`), and order
+  history — all through the proxy, with clear success/failure states. Cart now links to checkout.
+
+### Critical review — transaction safety / rollback / stock / money
+- **Transaction safety:** all mutations (stock decrements, order, order items, cart clear) are in
+  a single `$transaction`; nothing is written outside it, so there are no partial orders.
+- **Rollback proven:** payment decline (402), mid-loop insufficient stock (409 — an earlier
+  line's decrement is restored), and inactive product (409) all leave stock, order count, and the
+  cart exactly as before. Covered by both manual checks and 7 e2e tests.
+- **Stock consistency:** the conditional decrement prevents overselling even under concurrency;
+  cart-level checks are advisory, checkout is authoritative.
+- **Money calculations:** integer cents only; server-recomputed totals; persisted authoritative
+  total == Σ line totals; snapshots immutable.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -233,6 +271,17 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - Minor agent slips caught by the build/tests before commit: an `unknown`-typed test helper
     arg and a `void` mutation generic (both surfaced by `tsc`), and a premature `/admin` header
     link removed in self-review (route doesn't exist until M6).
+- **M5 (checkout):**
+  - 7 checkout e2e tests (success with totals/stock/cart assertions, empty cart 400, declined
+    payment 402 with no order/stock change, mid-loop insufficient-stock rollback, inactive-product
+    rollback, snapshot immutability, cross-user order isolation) — **38 tests total**.
+  - Manually verified the full matrix against the seed: successful multi-product checkout
+    (total = Σ lines, atomic stock decrement, cart cleared), empty cart, price-change-before-
+    checkout (order uses re-read price), stock-becomes-insufficient and product-becomes-inactive
+    (both 409 + full rollback incl. restoring an earlier line's decrement), payment decline (402,
+    nothing persisted), and snapshot immutability after later product edits.
+  - Verified the entire checkout flow through the Next proxy (login → add → checkout → order
+    detail → history → cart emptied) and that `/checkout`, `/orders`, `/orders/[id]` load.
 
 ## Design workflow
 

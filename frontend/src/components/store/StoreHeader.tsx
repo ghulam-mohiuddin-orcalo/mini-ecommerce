@@ -44,6 +44,12 @@ export function StoreHeader() {
           </Link>
           {user ? (
             <div className="flex items-center gap-2 pl-2">
+              <Link
+                href="/orders"
+                className="rounded-lg px-3 py-2 font-medium text-ink transition-colors hover:bg-brand-50"
+              >
+                Orders
+              </Link>
               <span className="hidden text-muted sm:inline">{user.name}</span>
               <button
                 onClick={() => logout.mutate(undefined, { onSuccess: () => router.push('/') })}

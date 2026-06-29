@@ -1,5 +1,26 @@
 export type Role = 'ADMIN' | 'CUSTOMER';
 
+export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  productImageUrl: string;
+  unitPriceCents: number;
+  quantity: number;
+  lineTotalCents: number;
+}
+
+export interface Order {
+  id: string;
+  status: OrderStatus;
+  totalCents: number;
+  paymentRef: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  items: OrderItem[];
+}
+
 export interface User {
   id: string;
   email: string;
