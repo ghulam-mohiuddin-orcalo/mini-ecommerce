@@ -51,15 +51,25 @@ function OrderDetail() {
   return (
     <div className="flex flex-col gap-6">
       {justPlaced && (
-        <div className="rounded-xl border border-[color:var(--color-success)]/30 bg-brand-50 p-4">
-          <p className="font-medium text-[color:var(--color-success)]">✓ Order confirmed — thank you!</p>
-          <p className="text-sm text-muted">A confirmation of your mock payment is below.</p>
+        <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-600 text-white"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+          </span>
+          <div>
+            <p className="font-bold text-brand-700">Order confirmed — thank you!</p>
+            <p className="text-sm text-muted">A confirmation of your mock payment is below.</p>
+          </div>
         </div>
       )}
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">
+          <h1 className="text-2xl font-extrabold tracking-tight text-ink">
             Order #{order.id.slice(-8)}
           </h1>
           <p className="mt-1 text-sm text-muted">Placed {formatDate(order.createdAt)}</p>
@@ -67,32 +77,37 @@ function OrderDetail() {
         <OrderStatusBadge status={order.status} />
       </div>
 
-      <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-surface">
+      <ul className="flex flex-col divide-y divide-[var(--color-line-soft)] overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-card)]">
         {order.items.map((item) => (
           <li key={item.productId} className="flex gap-4 p-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.productImageUrl}
               alt={item.productName}
-              className="h-16 w-16 rounded-lg border border-line object-cover"
+              className="h-16 w-16 rounded-xl border border-line object-cover"
             />
-            <div className="flex flex-1 flex-col">
-              <span className="font-medium text-ink">{item.productName}</span>
-              <span className="text-sm text-muted">
+            <div className="flex flex-1 flex-col justify-center">
+              <span className="font-bold tracking-tight text-ink">{item.productName}</span>
+              <span className="text-[13px] text-muted">
                 {formatPrice(item.unitPriceCents)} × {item.quantity}
               </span>
             </div>
-            <span className="font-semibold text-ink">{formatPrice(item.lineTotalCents)}</span>
+            <span className="self-center font-extrabold text-ink">{formatPrice(item.lineTotalCents)}</span>
           </li>
         ))}
       </ul>
 
-      <div className="flex items-center justify-between rounded-xl border border-line bg-surface p-4">
-        <span className="text-lg font-semibold text-ink">Total</span>
-        <span className="text-lg font-semibold text-brand-700">{formatPrice(order.totalCents)}</span>
+      <div className="flex items-center justify-between rounded-xl border border-line bg-surface p-[18px] shadow-[var(--shadow-card)]">
+        <span className="text-base font-extrabold text-ink">Total</span>
+        <span className="text-[22px] font-extrabold tracking-tight text-brand-700">
+          {formatPrice(order.totalCents)}
+        </span>
       </div>
 
-      <Link href="/orders" className="text-sm font-medium text-brand-700 hover:underline">
+      <Link
+        href="/orders"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline"
+      >
         ← All orders
       </Link>
 

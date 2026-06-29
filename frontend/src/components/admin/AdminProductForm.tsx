@@ -56,18 +56,27 @@ export function AdminProductForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="flex flex-col gap-4 rounded-xl border border-brand-200 bg-surface p-5 shadow-[var(--shadow-card)]"
+      className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-[22px] shadow-[var(--shadow-summary)]"
     >
-      <h2 className="text-lg font-semibold text-ink">{editing ? 'Edit product' : 'New product'}</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="SKU">
-          <Input value={form.sku} onChange={set('sku')} required disabled={editing} placeholder="TEE-010" />
-        </Field>
-        <Field label="Name">
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-extrabold tracking-tight text-ink">
+          {editing ? 'Edit product' : 'New product'}
+        </h2>
+        <button
+          type="button"
+          onClick={onDone}
+          className="text-[13px] font-semibold text-muted transition-colors hover:text-ink"
+        >
+          Cancel ✕
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <Field label="Name" className="sm:col-span-2">
           <Input value={form.name} onChange={set('name')} required />
         </Field>
-        <Field label="Category">
-          <Input value={form.category} onChange={set('category')} required />
+        <Field label="SKU">
+          <Input value={form.sku} onChange={set('sku')} required disabled={editing} placeholder="TEE-010" />
         </Field>
         <Field label="Price ($)">
           <Input type="number" min={0} step="0.01" value={form.priceDollars} onChange={set('priceDollars')} required />
@@ -75,19 +84,22 @@ export function AdminProductForm({
         <Field label="Stock">
           <Input type="number" min={0} value={form.stock} onChange={set('stock')} required />
         </Field>
-        <Field label="Image URL">
+        <Field label="Category">
+          <Input value={form.category} onChange={set('category')} required />
+        </Field>
+        <Field label="Image URL" className="sm:col-span-3">
           <Input type="url" value={form.imageUrl} onChange={set('imageUrl')} required placeholder="https://…" />
         </Field>
+        <Field label="Description" className="sm:col-span-3">
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            required
+            rows={3}
+            className="w-full rounded-lg border border-[#d9d3c8] bg-field px-3.5 py-2.5 text-sm leading-relaxed text-ink transition placeholder:text-muted focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-[3px] focus:ring-brand-500/15"
+          />
+        </Field>
       </div>
-      <Field label="Description">
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          required
-          rows={3}
-          className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-        />
-      </Field>
 
       {mutation.isError && (
         <p role="alert" className="text-sm text-[color:var(--color-danger)]">
@@ -99,7 +111,7 @@ export function AdminProductForm({
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? 'Saving…' : editing ? 'Save changes' : 'Create product'}
         </Button>
-        <Button type="button" variant="ghost" onClick={onDone}>
+        <Button type="button" variant="secondary" onClick={onDone}>
           Cancel
         </Button>
       </div>
@@ -107,10 +119,18 @@ export function AdminProductForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="font-medium text-ink">{label}</span>
+    <label className={`flex flex-col gap-1.5 text-sm ${className ?? ''}`}>
+      <span className="font-semibold text-ink">{label}</span>
       {children}
     </label>
   );

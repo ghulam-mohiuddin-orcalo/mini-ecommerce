@@ -1,17 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { useDebounce } from '@/lib/hooks/useDebounce';
-import type { ProductQuery, ProductSort } from '@/lib/types';
-
-const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'price_asc', label: 'Price: low to high' },
-  { value: 'price_desc', label: 'Price: high to low' },
-];
+import type { ProductQuery } from '@/lib/types';
 
 const centsToDollars = (cents?: number): string =>
   cents === undefined ? '' : String(cents / 100);
@@ -83,8 +76,20 @@ export function CatalogFilters({
 
   return (
     <div className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[15px] font-extrabold tracking-tight text-ink">Filters</h3>
+        {hasActiveFilters && (
+          <button
+            onClick={onClear}
+            className="text-xs font-semibold text-[var(--color-danger)] transition-colors hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="search" className="text-sm font-medium text-ink">
+        <label htmlFor="search" className="sr-only">
           Search
         </label>
         <Input
@@ -97,8 +102,8 @@ export function CatalogFilters({
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="category" className="text-sm font-medium text-ink">
+      <div className="flex flex-col gap-2">
+        <label htmlFor="category" className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
           Category
         </label>
         <Select
@@ -115,55 +120,39 @@ export function CatalogFilters({
         </Select>
       </div>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-sm font-medium text-ink">Price range ($)</legend>
-        <div className="flex items-center gap-2">
-          <Input
-            ref={minRef}
-            type="number"
-            min={0}
-            inputMode="decimal"
-            placeholder="Min"
-            aria-label="Minimum price in dollars"
-            value={minDollars}
-            onChange={(e) => setMinDollars(e.target.value)}
-          />
-          <span className="text-muted">–</span>
-          <Input
-            ref={maxRef}
-            type="number"
-            min={0}
-            inputMode="decimal"
-            placeholder="Max"
-            aria-label="Maximum price in dollars"
-            value={maxDollars}
-            onChange={(e) => setMaxDollars(e.target.value)}
-          />
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+          Price range
+        </legend>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-[11px] font-semibold text-muted">Min</span>
+            <Input
+              ref={minRef}
+              type="number"
+              min={0}
+              inputMode="decimal"
+              placeholder="$0"
+              aria-label="Minimum price in dollars"
+              value={minDollars}
+              onChange={(e) => setMinDollars(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-1 flex-col gap-1">
+            <span className="text-[11px] font-semibold text-muted">Max</span>
+            <Input
+              ref={maxRef}
+              type="number"
+              min={0}
+              inputMode="decimal"
+              placeholder="Any"
+              aria-label="Maximum price in dollars"
+              value={maxDollars}
+              onChange={(e) => setMaxDollars(e.target.value)}
+            />
+          </div>
         </div>
       </fieldset>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="sort" className="text-sm font-medium text-ink">
-          Sort by
-        </label>
-        <Select
-          id="sort"
-          value={value.sort ?? 'newest'}
-          onChange={(e) => onChange({ sort: e.target.value as ProductSort })}
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={onClear} className="self-start">
-          Clear filters
-        </Button>
-      )}
     </div>
   );
 }

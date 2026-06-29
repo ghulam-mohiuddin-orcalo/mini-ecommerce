@@ -1,48 +1,65 @@
 @import 'tailwindcss';
 
 /*
- * Design system — "Linen & Pine"
+ * Design system — "Pine & Parcel" (Linen & Pine, evolved)
  * A deliberate, custom visual identity for this storefront (NOT an off-the-shelf theme):
- *   - Warm paper-white surfaces over cool greys for an inviting, retail feel.
- *   - A deep pine-green brand accent signalling trust/commerce, away from the default blue.
- *   - Generous radii + soft shadows for an approachable, modern look.
- * These tokens are consumed via Tailwind utilities (bg-brand-600, text-ink, rounded-lg, ...).
+ *   - Warm paper surfaces with a single, deepened pine-green brand and a sparing brass accent.
+ *   - Manrope — one clean geometric sans, tuned by weight & tracking.
+ *   - Generous radii, layered-but-quiet shadows, and visible pine focus rings.
+ * Tokens are consumed via Tailwind utilities (bg-brand-600, text-ink, rounded-xl, ...).
  */
 @theme {
-  --font-sans: ui-sans-serif, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
   /* Neutrals — warm paper tones */
-  --color-paper: #fbfaf7;
+  --color-paper: #faf8f4; /* app background */
+  --color-paper-2: #f4f1eb; /* subtle banded sections */
   --color-surface: #ffffff;
-  --color-ink: #1c1b1a;
-  --color-muted: #6f6b66;
-  --color-line: #e8e4dd;
+  --color-field: #fcfbf9; /* input fill */
+  --color-ink: #1b1a18; /* primary text */
+  --color-ink-soft: #57534c; /* body / secondary text */
+  --color-muted: #8a847b; /* labels, meta, hints */
+  --color-faint: #a8a296; /* faint counts, disabled-ish */
+  --color-line: #e7e2d9; /* borders */
+  --color-line-soft: #efeae0; /* inner dividers */
 
   /* Brand — pine green */
-  --color-brand-50: #f0f6f3;
-  --color-brand-100: #d8e9e0;
-  --color-brand-200: #b2d3c3;
-  --color-brand-300: #84b6a0;
-  --color-brand-400: #569079;
-  --color-brand-500: #3a755e;
+  --color-brand-50: #f0f5f2;
+  --color-brand-100: #dceae3;
+  --color-brand-200: #b6d2c4;
+  --color-brand-300: #87b4a0;
+  --color-brand-400: #5c9079;
+  --color-brand-500: #3c775e;
   --color-brand-600: #2c5d4a;
   --color-brand-700: #244b3c;
   --color-brand-800: #1e3c31;
-  --color-brand-900: #19312a;
+  --color-brand-900: #18302a;
 
-  /* Accent — warm amber for highlights / sale badges */
-  --color-accent-400: #e8a13c;
-  --color-accent-500: #d4882a;
+  /* Accent — brass, used sparingly for highlights */
+  --color-accent-400: #d8b15f;
+  --color-accent-500: #c79a52;
 
   /* Status */
   --color-success: #2f8f5b;
-  --color-warning: #c98a1b;
-  --color-danger: #c0492f;
+  --color-warning: #c2871a;
+  --color-danger: #bd4a30;
 
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.125rem;
+  /* Soft tonal fills for status pills */
+  --color-warning-soft: #f6ecd6;
+  --color-warning-ink: #8a5e12;
+  --color-danger-soft: #f6ded6;
+  --color-danger-ink: #9a3520;
 
-  --shadow-card: 0 1px 2px rgb(28 27 26 / 0.04), 0 4px 16px rgb(28 27 26 / 0.06);
+  --radius-md: 0.625rem; /* 10px — thumbnails, small chips */
+  --radius-lg: 0.6875rem; /* 11px — buttons, inputs, nav pills */
+  --radius-xl: 1rem; /* 16px — cards, panels */
+  --radius-2xl: 1.25rem; /* 20px — hero/detail imagery, large panels */
+
+  --shadow-card: 0 1px 2px rgb(27 26 24 / 0.04), 0 14px 30px -22px rgb(27 26 24 / 0.22);
+  --shadow-lift: 0 22px 40px -22px rgb(27 26 24 / 0.35);
+  --shadow-btn: 0 6px 16px -8px rgb(44 93 74 / 0.6);
+  --shadow-summary: 0 10px 30px -18px rgb(27 26 24 / 0.28);
+  --shadow-panel: 0 30px 60px -30px rgb(27 26 24 / 0.32);
 }
 
 html,
@@ -55,4 +72,53 @@ body {
 
 * {
   border-color: var(--color-line);
+}
+
+::selection {
+  background: #b6d2c4;
+  color: #18302a;
+}
+
+/* Quiet motion: gentle rise-in for above-the-fold content. */
+@keyframes pp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pp-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.pp-rise {
+  animation: pp-rise 0.6s ease both;
+}
+
+.pp-rise-delay {
+  animation: pp-rise 0.7s ease 0.08s both;
+}
+
+/* Shimmer skeleton — warmer and calmer than a flat pulse. */
+.pp-skeleton {
+  background: linear-gradient(90deg, #ece7dd 0px, #f5f1e9 200px, #ece7dd 400px);
+  background-size: 800px 100%;
+  animation: pp-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-rise,
+  .pp-rise-delay,
+  .pp-skeleton {
+    animation: none;
+  }
 }

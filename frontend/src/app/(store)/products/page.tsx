@@ -8,6 +8,7 @@ import { ProductGrid, ProductGridSkeleton } from '@/components/store/ProductGrid
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useCategories, useProducts } from '@/lib/hooks/useProducts';
+import { cn } from '@/lib/cn';
 import type { ProductQuery, ProductSort } from '@/lib/types';
 
 const VALID_SORTS: ProductSort[] = ['newest', 'price_asc', 'price_desc'];
@@ -73,11 +74,16 @@ function CatalogClient() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Catalog</h1>
-        <p className="mt-1 text-sm text-muted">
-          {meta ? `${meta.total} product${meta.total === 1 ? '' : 's'}` : 'Browse our products'}
-        </p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-ink sm:text-[34px]">Catalog</h1>
+          <p className="mt-1.5 text-sm text-muted">
+            {meta
+              ? `${meta.total} product${meta.total === 1 ? '' : 's'} · curated for everyday use`
+              : 'Browse our products'}
+          </p>
+        </div>
+        <SortToggle value={query.sort ?? 'newest'} onChange={(sort) => updateFilters({ sort })} />
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
@@ -117,6 +123,44 @@ function CatalogClient() {
             </div>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+const SORT_TABS: { value: ProductSort; label: string }[] = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'price_asc', label: 'Price ↑' },
+  { value: 'price_desc', label: 'Price ↓' },
+];
+
+function SortToggle({
+  value,
+  onChange,
+}: {
+  value: ProductSort;
+  onChange: (sort: ProductSort) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="text-sm font-semibold text-muted">Sort</span>
+      <div className="inline-flex gap-0.5 rounded-lg bg-[#eae4d9] p-0.5" role="group" aria-label="Sort products">
+        {SORT_TABS.map((tab) => {
+          const active = value === tab.value;
+          return (
+            <button
+              key={tab.value}
+              onClick={() => onChange(tab.value)}
+              aria-pressed={active}
+              className={cn(
+                'rounded-[8px] px-3 py-1.5 text-[13px] font-semibold transition-colors',
+                active ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)]' : 'text-ink-soft hover:text-ink',
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

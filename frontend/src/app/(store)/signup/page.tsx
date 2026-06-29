@@ -21,42 +21,42 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Create your account</h1>
-        <p className="mt-1 text-sm text-muted">It only takes a moment.</p>
-      </div>
+    <div className="mx-auto flex max-w-md flex-col px-4 py-16">
+      <div className="rounded-2xl border border-line bg-surface p-7 shadow-[var(--shadow-panel)]">
+        <h1 className="text-lg font-extrabold tracking-tight text-ink">Create your account</h1>
+        <p className="mt-1.5 text-sm text-muted">Join Pine &amp; Parcel — it takes a moment.</p>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="name" className="text-sm font-medium text-ink">Name</label>
-          <Input id="name" autoComplete="name" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium text-ink">Email</label>
-          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-ink">Password</label>
-          <Input id="password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
-          <p className="text-xs text-muted">At least 8 characters.</p>
-        </div>
+        <form onSubmit={onSubmit} className="mt-5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="name" className="text-sm font-semibold text-ink">Name</label>
+            <Input id="name" autoComplete="name" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="email" className="text-sm font-semibold text-ink">Email</label>
+            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <label htmlFor="password" className="text-sm font-semibold text-ink">Password</label>
+            <Input id="password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <p className="text-xs text-muted">At least 8 characters.</p>
+          </div>
 
-        {signup.isError && (
-          <p role="alert" className="text-sm text-[color:var(--color-danger)]">
-            {signup.error instanceof ApiError ? signup.error.message : 'Sign up failed'}
-          </p>
-        )}
+          {signup.isError && (
+            <p role="alert" className="text-sm text-[color:var(--color-danger)] sm:col-span-2">
+              {signup.error instanceof ApiError ? signup.error.message : 'Sign up failed'}
+            </p>
+          )}
 
-        <Button type="submit" disabled={signup.isPending}>
-          {signup.isPending ? 'Creating account…' : 'Create account'}
-        </Button>
+          <Button type="submit" size="lg" disabled={signup.isPending} className="w-full sm:col-span-2">
+            {signup.isPending ? 'Creating account…' : 'Create account'}
+          </Button>
+        </form>
 
-        <p className="text-center text-sm text-muted">
+        <p className="mt-4 text-center text-sm text-muted">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-brand-700 hover:underline">Sign in</Link>
+          <Link href="/login" className="font-bold text-brand-600 hover:underline">Sign in</Link>
         </p>
-      </form>
+      </div>
     </div>
   );
 }
