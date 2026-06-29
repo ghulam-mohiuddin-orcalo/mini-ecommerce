@@ -93,15 +93,18 @@ DATABASE_URL="postgresql://shop:shop@localhost:5432/mini_ecommerce_test?schema=p
 ```
 
 Current coverage: authentication & authorization (signup/login, invalid credentials,
-invalid/expired JWT, logout, RBAC), the product catalog (active-only visibility,
-search/category/price filters, sorting, pagination boundaries, 404s), and the cart
-(add/merge/update/remove, stock & active validation, totals, and **cross-user ownership
-isolation**), and checkout (transactional success, empty cart, payment decline, insufficient
-stock & inactive-product rollback, snapshot immutability, order ownership), and the admin panel
-(RBAC on every admin route, product create/edit/activate with duplicate-SKU & validation
-handling, the order state machine with cancellation restock, and analytics correctness), and
-recommendations (purchase-history / cart / top-seller strategies, owned- and inactive-product
-exclusion, related-by-category, and refresh-after-purchase) — 54 tests total.
+invalid/expired JWT, logout, RBAC, **case-insensitive email normalization**), the product
+catalog (active-only visibility, search/category/price filters, sorting, pagination boundaries,
+404s), and the cart (add/merge/update/remove, stock & active validation, totals, and **cross-user
+ownership isolation**), and checkout (transactional success, empty cart, payment decline,
+insufficient stock & inactive-product rollback, snapshot immutability, order ownership), and the
+admin panel (RBAC on every admin route, product create/edit/activate with duplicate-SKU &
+validation handling, the order state machine with cancellation restock, and analytics
+correctness), and recommendations (purchase-history / cart / top-seller strategies, owned- and
+inactive-product exclusion, related-by-category, and refresh-after-purchase) — **57 e2e tests**.
+
+Fast **unit tests** cover pure logic (the order state-machine transition matrix) and run without
+a database via `npm test` (12 tests).
 
 ## API (so far)
 
