@@ -1,0 +1,142 @@
+// Mini E-Commerce — data model.
+//
+// Design principles (see commit summary / NOTES.md for full rationale):
+//  * Money is stored as INTEGER minor units (cents). Never floats.
+//  * Order line items SNAPSHOT the product (name, image, unit price, category) so a
+//    historical order stays correct even if the product is later edited or removed.
+//  * Products are SOFT-DELETED (isActive=false) so order history never breaks.
+//  * Referential actions are chosen intentionally per relation (see comments).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cart   Cart?
+  orders Order[]
+
+  @@index([role])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  sku         String   @unique // stable natural key — also the idempotent upsert key for seeding
+  name        String
+  description String
+  priceCents  Int // price in minor units (e.g. 1999 = $19.99)
+  imageUrl    String
+  category    String
+  stock       Int      @default(0)
+  isActive    Boolean  @default(true) // soft-delete flag; false = hidden from catalog
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  // Catalog queries always scope to active products and then filter/sort by
+  // category, price, or recency — these composite indexes back those access paths.
+  @@index([isActive, category])
+  @@index([isActive, createdAt])
+  @@index([isActive, priceCents])
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique // one persistent cart per user
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Deleting a user removes their cart. (User deletion is itself restricted by
+  // Order below, so this only fires for users with no order history.)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  // A live product reference. If a product were ever hard-deleted, its cart rows go
+  // with it (a cart line to a non-existent product is meaningless). Note: a product
+  // that has order history can't be hard-deleted (OrderItem uses Restrict), so the
+  // normal path is soft-delete + a checkout-time validity check.
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId]) // one line per product; quantity is updated in place
+  @@index([productId])
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  userId     String
+  status     OrderStatus @default(PENDING)
+  totalCents Int // authoritative charged amount, computed server-side from snapshots
+  // Mock payment metadata (kept on the order so it is self-contained / auditable).
+  paymentRef String?
+  paidAt     DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  // Restrict: a customer with order history cannot be deleted — financial/audit
+  // records must be preserved. Deletion would require archiving first, by design.
+  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items OrderItem[]
+
+  @@index([userId, createdAt]) // "my orders, newest first"
+  @@index([status]) // admin filtering / dashboard counts by status
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+
+  // --- Immutable snapshot taken at order time (do NOT read live product fields) ---
+  productName     String
+  productImageUrl String
+  productCategory String
+  unitPriceCents  Int
+  quantity        Int
+
+  // Cascade: order items are an integral part of their order; deleting the order
+  // (an explicit admin/archival action) removes them.
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Restrict: you cannot hard-delete a product that appears in any order. This is the
+  // backstop that protects historical orders and forces the soft-delete path instead.
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId]) // top-selling-products aggregation groups by productId
+}
