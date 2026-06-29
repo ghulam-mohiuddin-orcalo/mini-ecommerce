@@ -62,7 +62,7 @@ function OrderDetail() {
           </span>
           <div>
             <p className="font-bold text-brand-700">Order confirmed — thank you!</p>
-            <p className="text-sm text-muted">A confirmation of your mock payment is below.</p>
+            <p className="text-sm text-muted">Your payment was confirmed by Stripe. A summary is below.</p>
           </div>
         </div>
       )}

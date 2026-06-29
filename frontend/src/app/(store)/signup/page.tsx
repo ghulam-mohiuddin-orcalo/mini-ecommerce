@@ -17,7 +17,10 @@ export default function SignupPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    signup.mutate({ name, email, password }, { onSuccess: () => router.push('/products') });
+    signup.mutate(
+      { name, email, password },
+      { onSuccess: (user) => router.replace(user.role === 'ADMIN' ? '/admin' : '/products') },
+    );
   };
 
   return (

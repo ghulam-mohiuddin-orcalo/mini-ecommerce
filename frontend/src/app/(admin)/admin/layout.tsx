@@ -2,11 +2,11 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/cn';
-import { useMe } from '@/lib/hooks/useAuth';
+import { useMe, useLogout } from '@/lib/hooks/useAuth';
 
 type NavItem = { href: string; label: string; icon: ReactNode };
 
@@ -54,6 +54,9 @@ function isActive(href: string, pathname: string) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useMe();
   const pathname = usePathname();
+  const router = useRouter();
+  const logout = useLogout();
+  const signOut = () => logout.mutate(undefined, { onSuccess: () => router.replace('/login') });
 
   if (isLoading) {
     return <div className="mx-auto max-w-6xl px-4 py-10"><Skeleton className="h-64 w-full" /></div>;
@@ -115,18 +118,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        <Link
-          href="/"
-          className="mt-auto flex items-center gap-2.5 rounded-xl bg-paper-2 p-3 transition-colors hover:bg-brand-50"
-        >
-          <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-brand-600 text-[13px] font-bold text-white">
-            {initials}
-          </span>
-          <span className="flex flex-col leading-snug">
-            <span className="text-[13px] font-bold text-ink">{user.name}</span>
-            <span className="text-[11px] text-muted">← Back to store</span>
-          </span>
-        </Link>
+        <div className="mt-auto flex flex-col gap-2">
+          <div className="flex items-center gap-2.5 rounded-xl bg-paper-2 p-3">
+            <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-brand-600 text-[13px] font-bold text-white">
+              {initials}
+            </span>
+            <span className="flex min-w-0 flex-col leading-snug">
+              <span className="truncate text-[13px] font-bold text-ink">{user.name}</span>
+              <span className="text-[11px] text-muted">Administrator</span>
+            </span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={signOut}
+            disabled={logout.isPending}
+            className="w-full"
+          >
+            {logout.isPending ? 'Signing out…' : 'Sign out'}
+          </Button>
+        </div>
       </aside>
 
       {/* Mobile top bar */}
@@ -138,9 +149,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
             <span className="font-bold tracking-tight text-ink">Admin</span>
           </Link>
-          <Link href="/" className="text-sm font-semibold text-muted hover:text-ink">
-            ← Store
-          </Link>
+          <button
+            type="button"
+            onClick={signOut}
+            disabled={logout.isPending}
+            className="text-sm font-semibold text-muted hover:text-ink disabled:opacity-50"
+          >
+            {logout.isPending ? 'Signing out…' : 'Sign out'}
+          </button>
         </div>
         <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-3 text-sm">
           {NAV.map((item) => {

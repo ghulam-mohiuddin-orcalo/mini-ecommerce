@@ -70,14 +70,54 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 Seed data also includes 14 products across 5 categories (Apparel, Home, Electronics, Books,
 Outdoors), 5 orders spanning every status, and a populated cart for the customer.
 
-## Payment (mock)
+## Payment (Stripe Checkout — Test Mode)
 
-Checkout uses a **mock payment provider** — no real charges. It succeeds by default and returns
-a synthetic reference. To exercise the failure path, the checkout page has a **"Simulate a
-declined payment"** toggle (it sends the documented token `tok_decline`); a declined payment
-rolls back the whole transaction — no order is created and no stock is changed. The provider sits
-behind a `PaymentProvider` interface, so a real gateway (e.g. Stripe test mode) could be dropped
-in without changing the checkout flow.
+Checkout uses **Stripe Checkout** in **Test Mode** (no real charges). The customer clicks
+**"Proceed to Payment"** and is redirected to Stripe's hosted Checkout page; **the order is only
+created after Stripe confirms payment**, never before.
+
+How it works:
+
+1. `POST /payments/checkout-session` builds the Stripe line items **from current database prices**
+   (the client never sends prices/totals) and stores `userId`/`cartId` in the session metadata.
+   The browser is redirected to the returned Stripe URL.
+2. On payment, Stripe sends a signed **`checkout.session.completed`** webhook to
+   `POST /payments/webhook`. The signature is verified, then the existing **transactional checkout
+   core** runs: re-read products, validate stock, recompute totals server-side, decrement stock,
+   create the order + items, and clear the cart — all in one transaction. If any check fails, no
+   order is created.
+3. The success page (`/checkout/success`) polls session status and, once fulfilled, forwards to
+   the existing order confirmation page. Fulfilment is **idempotent** (unique `stripeSessionId`),
+   so duplicate webhook deliveries never create a second order — and the success page can safely
+   reconcile directly with Stripe even when no webhook forwarder is running locally.
+
+**Why Stripe Checkout (not Elements):** Checkout is Stripe-hosted, so card data never touches our
+servers (PCI SAQ-A), and it covers 3DS/SCA, wallets, and receipts out of the box — maximum payment
+coverage for minimal code, exactly right for this scope. Full reasoning in
+[`NOTES.md`](./NOTES.md).
+
+### Configuring Stripe (Test Mode)
+
+Add your test keys to `backend/.env` (and the publishable key to `frontend/.env.local`):
+
+```bash
+# backend/.env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...      # from `stripe listen` (below) or the Dashboard
+# frontend/.env.local
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+To receive webhooks locally, run the [Stripe CLI](https://stripe.com/docs/stripe-cli) and forward
+events to the backend (which is reached directly, not via the Next proxy):
+
+```bash
+stripe listen --forward-to http://localhost:3001/payments/webhook
+# copy the printed whsec_... into STRIPE_WEBHOOK_SECRET, then restart the backend
+```
+
+Pay with Stripe's test card **`4242 4242 4242 4242`**, any future expiry, any CVC and ZIP.
+If `STRIPE_SECRET_KEY` is unset the app still boots, but any Checkout call returns **503**.
 
 ## Testing
 
@@ -103,8 +143,10 @@ validation handling, the order state machine with cancellation restock, and anal
 correctness), and recommendations (purchase-history / cart / top-seller strategies, owned- and
 inactive-product exclusion, related-by-category, and refresh-after-purchase) — **57 e2e tests**.
 
-Fast **unit tests** cover pure logic (the order state-machine transition matrix) and run without
-a database via `npm test` (12 tests).
+Fast **unit tests** cover pure logic (the order state-machine transition matrix) and the **Stripe
+webhook handler** (signature rejection, paid-event fulfilment, idempotent duplicate delivery,
+out-of-stock acknowledgement, unrelated/unpaid events) — they run without a database or a live
+Stripe account via `npm test` (20 tests).
 
 ## API (so far)
 

@@ -106,9 +106,13 @@ model Order {
   userId     String
   status     OrderStatus @default(PENDING)
   totalCents Int // authoritative charged amount, computed server-side from snapshots
-  // Mock payment metadata (kept on the order so it is self-contained / auditable).
+  // Payment metadata (kept on the order so it is self-contained / auditable).
+  // paymentRef holds the provider reference (Stripe PaymentIntent id, or a mock ref).
   paymentRef String?
   paidAt     DateTime?
+  // Stripe Checkout Session id. UNIQUE so webhook fulfillment is idempotent: a duplicate
+  // `checkout.session.completed` delivery can never create a second order for the same session.
+  stripeSessionId String? @unique
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
