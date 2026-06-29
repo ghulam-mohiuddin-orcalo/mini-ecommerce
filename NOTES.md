@@ -74,6 +74,29 @@ build progresses (not at the end).
 - **No user enumeration on login:** identical 401 message for unknown email vs wrong password.
   (Signup necessarily reveals an email is taken — accepted trade-off.)
 
+### Product catalog (Milestone 3) — end-to-end
+- **Backend:** `GET /products` composes a reusable Prisma `where` (always `isActive: true`, plus
+  optional case-insensitive name search, exact category, and inclusive cents price range) and
+  `orderBy` (newest / price asc / price desc). Data + total count run in **one** `$transaction`
+  round trip, backed by the composite catalog indexes from M1. `GET /products/:id` returns a
+  single active product or 404; `GET /products/categories` powers the filter. All public.
+- **Money in the API stays in cents** (`minPrice`/`maxPrice`); the frontend converts to/from
+  dollars only at the input edge.
+- **Frontend (fully integrated):** home (hero + new arrivals), catalog (filter sidebar + grid +
+  pagination), and product detail — all driven by TanStack Query against `/api/*` through the
+  proxy. **Filters are synchronized with URL search params** (shareable/bookmarkable), and so
+  filter state is preserved across list↔detail navigation (the catalog route re-reads the URL).
+  Loading skeletons, empty state, and error state (with retry) are all present.
+- **Design:** continued the custom "Linen & Pine" system — new primitives (`Input`, `Select`,
+  `Badge`, `Skeleton`, `States`) and store components (`ProductCard`, grid, filters, pagination)
+  built from our tokens, no template.
+- **Deliberate decisions:** plain `<img>` (lazy/async) over `next/image` — avoids remote-image
+  config and stays resilient if the external demo image host is unreachable (e.g. offline clean
+  clone); page size fixed at 12; filter inputs use focus-aware resync so Clear/back-navigation
+  update the boxes without fighting the user's typing.
+- **Add-to-cart on the detail page is intentionally deferred to M4** (it needs the cart backend)
+  — no dead buttons shipped in M3.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -156,6 +179,17 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - Error-shape consistency verified for 401/403/422/429 (proper reason phrases, no stack
     traces).
   - e2e suite is guarded to refuse any non-`test` database, so it can't wipe dev data.
+- **M3 (catalog):**
+  - 8 automated catalog e2e tests added (active-only, search, category, price range, sort,
+    pagination boundaries, 422 on bad params, 404 for inactive/missing) — 21 tests total.
+  - Manually verified against the seed: every filter and combination, sort correctness (asc/desc
+    arrays sorted), pagination (page 2 = 2 items, out-of-range = empty with correct total),
+    detail matches listing, and toggling a product inactive removes it from list/search/detail
+    (404) then restores.
+  - **Verified the storefront works only through the Next proxy:** `/api/products` via :3000
+    returns the catalog; `/`, `/products`, filtered URLs, and detail pages all return 200.
+  - Lighthouse not run in this sandbox (no browser); the build is optimized (≈124–126 kB first
+    load, lazy images, skeletons to limit CLS) — left as a manual check.
 
 ## Design workflow
 

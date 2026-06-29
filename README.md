@@ -83,8 +83,9 @@ docker exec mini_ecommerce_db psql -U shop -d postgres -c "CREATE DATABASE mini_
 DATABASE_URL="postgresql://shop:shop@localhost:5432/mini_ecommerce_test?schema=public" npm run test:e2e
 ```
 
-Current coverage: authentication & authorization — signup/login, invalid credentials,
-invalid/expired JWT, logout, and role-based access control (customer vs admin).
+Current coverage: authentication & authorization (signup/login, invalid credentials,
+invalid/expired JWT, logout, RBAC) and the product catalog (active-only visibility,
+search/category/price filters, sorting, pagination boundaries, 404s) — 21 tests total.
 
 ## API (so far)
 
@@ -96,6 +97,9 @@ invalid/expired JWT, logout, and role-based access control (customer vs admin).
 | POST | `/auth/logout` | public | Clear the auth cookie |
 | GET | `/auth/me` | authenticated | Current user |
 | GET | `/users` | admin only | List users (sanitized) |
+| GET | `/products` | public | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
+| GET | `/products/categories` | public | Distinct categories |
+| GET | `/products/:id` | public | Single active product (404 if inactive/missing) |
 
 ## Useful commands (backend)
 

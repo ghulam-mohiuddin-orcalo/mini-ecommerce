@@ -1,0 +1,131 @@
+'use client';
+
+import { Suspense, useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { CatalogFilters } from '@/components/store/CatalogFilters';
+import { Pagination } from '@/components/store/Pagination';
+import { ProductGrid, ProductGridSkeleton } from '@/components/store/ProductGrid';
+import { Button } from '@/components/ui/Button';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { useCategories, useProducts } from '@/lib/hooks/useProducts';
+import type { ProductQuery, ProductSort } from '@/lib/types';
+
+const VALID_SORTS: ProductSort[] = ['newest', 'price_asc', 'price_desc'];
+
+function parseQuery(sp: URLSearchParams): ProductQuery {
+  const num = (key: string): number | undefined => {
+    const raw = sp.get(key);
+    if (raw === null || raw === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const sortRaw = sp.get('sort') as ProductSort | null;
+  return {
+    search: sp.get('search') ?? undefined,
+    category: sp.get('category') ?? undefined,
+    minPrice: num('minPrice'),
+    maxPrice: num('maxPrice'),
+    sort: sortRaw && VALID_SORTS.includes(sortRaw) ? sortRaw : 'newest',
+    page: num('page') ?? 1,
+    pageSize: 12,
+  };
+}
+
+function CatalogClient() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const query = parseQuery(searchParams);
+  const { data, isLoading, isError, isFetching, refetch } = useProducts(query);
+  const { data: categories = [] } = useCategories();
+
+  const writeParams = useCallback(
+    (next: ProductQuery) => {
+      const usp = new URLSearchParams();
+      if (next.search) usp.set('search', next.search);
+      if (next.category) usp.set('category', next.category);
+      if (next.minPrice !== undefined) usp.set('minPrice', String(next.minPrice));
+      if (next.maxPrice !== undefined) usp.set('maxPrice', String(next.maxPrice));
+      if (next.sort && next.sort !== 'newest') usp.set('sort', next.sort);
+      if (next.page && next.page > 1) usp.set('page', String(next.page));
+      const qs = usp.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router],
+  );
+
+  // Filter changes reset to page 1; pagination keeps the rest of the query.
+  const updateFilters = useCallback(
+    (partial: Partial<ProductQuery>) => writeParams({ ...query, ...partial, page: 1 }),
+    [query, writeParams],
+  );
+  const setPage = useCallback(
+    (page: number) => writeParams({ ...query, page }),
+    [query, writeParams],
+  );
+  const clearAll = useCallback(() => router.replace(pathname, { scroll: false }), [pathname, router]);
+
+  const hasActiveFilters = Boolean(
+    query.search || query.category || query.minPrice !== undefined || query.maxPrice !== undefined,
+  );
+  const meta = data?.meta;
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-semibold tracking-tight text-ink">Catalog</h1>
+        <p className="mt-1 text-sm text-muted">
+          {meta ? `${meta.total} product${meta.total === 1 ? '' : 's'}` : 'Browse our products'}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          <CatalogFilters
+            value={query}
+            categories={categories}
+            onChange={updateFilters}
+            onClear={clearAll}
+            hasActiveFilters={hasActiveFilters}
+          />
+        </aside>
+
+        <section aria-busy={isFetching}>
+          {isLoading ? (
+            <ProductGridSkeleton count={6} />
+          ) : isError ? (
+            <ErrorState onRetry={() => void refetch()} />
+          ) : data && data.data.length === 0 ? (
+            <EmptyState
+              title="No products match your filters"
+              description="Try widening your price range or clearing the search."
+              action={
+                hasActiveFilters ? (
+                  <Button variant="secondary" onClick={clearAll}>
+                    Clear filters
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="flex flex-col gap-8">
+              <ProductGrid products={data?.data ?? []} />
+              {meta && (
+                <Pagination page={meta.page} totalPages={meta.totalPages} onPageChange={setPage} />
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6"><ProductGridSkeleton /></div>}>
+      <CatalogClient />
+    </Suspense>
+  );
+}
