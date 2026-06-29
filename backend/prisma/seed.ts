@@ -9,7 +9,7 @@
  *
  * Money is in integer cents throughout. Order items snapshot product fields.
  */
-import { PrismaClient, OrderStatus, Role } from '@prisma/client';
+import { PrismaClient, OrderStatus, Role, type Product } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -114,6 +114,11 @@ async function main(): Promise<void> {
 
   const products = await prisma.product.findMany();
   const bySku = new Map(products.map((p) => [p.sku, p]));
+  const requireProduct = (sku: string): Product => {
+    const product = bySku.get(sku);
+    if (!product) throw new Error(`Seed error: unknown SKU ${sku}`);
+    return product;
+  };
 
   // 3) Reset + recreate the demo customer's orders and cart (idempotent) --------------
   // Cascades remove child order items / cart items.
@@ -124,8 +129,7 @@ async function main(): Promise<void> {
 
   for (const order of ORDERS) {
     const items = order.lines.map((line) => {
-      const product = bySku.get(line.sku);
-      if (!product) throw new Error(`Seed error: unknown SKU ${line.sku}`);
+      const product = requireProduct(line.sku);
       return {
         productId: product.id,
         productName: product.name,
@@ -155,8 +159,7 @@ async function main(): Promise<void> {
       userId: customer.id,
       items: {
         create: CART_LINES.map((line) => {
-          const product = bySku.get(line.sku);
-          if (!product) throw new Error(`Seed error: unknown SKU ${line.sku}`);
+          const product = requireProduct(line.sku);
           return { productId: product.id, quantity: line.quantity };
         }),
       },
@@ -184,11 +187,12 @@ async function main(): Promise<void> {
 }
 
 main()
-  .catch((err) => {
+  .then(async () => {
+    await prisma.$disconnect();
+  })
+  .catch(async (err) => {
     // eslint-disable-next-line no-console
     console.error(err);
+    await prisma.$disconnect();
     process.exit(1);
-  })
-  .finally(() => {
-    void prisma.$disconnect();
   });

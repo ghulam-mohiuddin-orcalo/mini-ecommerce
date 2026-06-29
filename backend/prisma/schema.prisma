@@ -6,6 +6,9 @@
 //    historical order stays correct even if the product is later edited or removed.
 //  * Products are SOFT-DELETED (isActive=false) so order history never breaks.
 //  * Referential actions are chosen intentionally per relation (see comments).
+//  * Value invariants (non-negative money/stock, positive quantities) are enforced at the
+//    DB level via CHECK constraints — see migration `add_value_check_constraints` — because
+//    Prisma's schema language can't express them. App-layer DTO validation backs these up.
 
 generator client {
   provider = "prisma-client-js"
