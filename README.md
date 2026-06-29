@@ -67,6 +67,33 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 Seed data also includes 14 products across 5 categories (Apparel, Home, Electronics, Books,
 Outdoors), 5 orders spanning every status, and a populated cart for the customer.
 
+## Testing
+
+Backend e2e tests (Jest + Supertest) run against a **dedicated test database** so they never
+touch your dev data (the suite also refuses to run unless `DATABASE_URL` names a `*test*` DB).
+
+```bash
+cd backend
+# one-time: create the test database
+docker exec mini_ecommerce_db psql -U shop -d postgres -c "CREATE DATABASE mini_ecommerce_test;"
+# run (pretest applies migrations automatically)
+DATABASE_URL="postgresql://shop:shop@localhost:5432/mini_ecommerce_test?schema=public" npm run test:e2e
+```
+
+Current coverage: authentication & authorization — signup/login, invalid credentials,
+invalid/expired JWT, logout, and role-based access control (customer vs admin).
+
+## API (so far)
+
+| Method | Route | Access | Purpose |
+|---|---|---|---|
+| GET | `/health` | public | Liveness check |
+| POST | `/auth/signup` | public | Register a customer (sets auth cookie) |
+| POST | `/auth/login` | public | Authenticate (sets auth cookie) |
+| POST | `/auth/logout` | public | Clear the auth cookie |
+| GET | `/auth/me` | authenticated | Current user |
+| GET | `/users` | admin only | List users (sanitized) |
+
 ## Useful commands (backend)
 
 | Command | Purpose |

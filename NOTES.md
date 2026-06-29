@@ -52,6 +52,28 @@ build progresses (not at the end).
   Unique constraints on `email`, `sku`, `Cart.userId`, `(cartId, productId)`.
 - **`sku`** added as a stable natural key that doubles as the idempotent seed upsert key.
 
+### Authentication & authorization (Milestone 2)
+- **JWT in an httpOnly cookie**, `SameSite=Lax`, `Secure` only in production (`NODE_ENV`). The
+  token is never exposed to frontend JS (XSS-safe); same-origin via the Next proxy means Lax
+  covers CSRF without cross-site cookie complexity. No refresh tokens — deliberately out of
+  scope for a 5–6h build (documented trade-off).
+- **bcryptjs, cost 12.** Signup/login DTOs cap password at 72 bytes (bcrypt's limit) to avoid
+  silent truncation.
+- **Secure-by-default guards:** `JwtAuthGuard` and `RolesGuard` are registered globally; routes
+  are protected unless explicitly `@Public()`. Admin routes add `@Roles(ADMIN)`. Guard order is
+  authenticate-then-authorize.
+- **DB re-validation on every request:** `JwtStrategy.validate` looks the user up by id, so
+  deleted users are rejected and the current role is always used (no stale-role tokens).
+- **Sanitized responses:** a `toSafeUser` mapper guarantees `passwordHash` never leaves the
+  server; `/auth/me` returns only id/email/name/role.
+- **Consistent errors:** validation → **422**, auth → **401**, role → **403**, duplicate →
+  **409**, rate limit → **429**, all via the global filter in one `{statusCode,error,message,
+  path,timestamp}` shape. `forbidNonWhitelisted` rejects unexpected fields.
+- **Rate limiting:** `@nestjs/throttler` on `/auth/signup` and `/auth/login` (configurable via
+  `AUTH_THROTTLE_LIMIT`, default 10/min/IP). Cheap to add, meaningful protection.
+- **No user enumeration on login:** identical 401 message for unknown email vs wrong password.
+  (Signup necessarily reveals an email is taken — accepted trade-off.)
+
 ### Tooling / dependency decisions
 - **`bcryptjs`** (pure JS) over native `bcrypt` — avoids a native build toolchain, a common
   clean-clone failure on Windows.
@@ -80,6 +102,19 @@ it was caught.
 3. **Self-review cleanups (M1).** Reviewing the seed before commit surfaced duplicated
    `bySku.get(...) + throw` logic (extracted a `requireProduct` helper) and an un-awaited
    `prisma.$disconnect()` in teardown (restructured to await it).
+4. **Build output silently relocated (M2).** Adding `prisma/seed.ts` (which imports
+   `@prisma/client`) pulled the `prisma/` folder into the Nest build, shifting the output from
+   `dist/main.js` to `dist/src/main.js` and breaking `start:prod`. Caught when the built server
+   failed with `Cannot find module dist/main.js`. Fixed by excluding `prisma` from
+   `tsconfig.build.json`. *Lesson: adding files can change the compiler's inferred rootDir.*
+5. **Two e2e failures that were actually the code being right (M2).** `/users` returned 401 in
+   tests while a live curl returned the correct 403/200. Root cause was a *test* bug: the test
+   sent the whole `{email,password,name}` object to `/auth/login`, and `forbidNonWhitelisted`
+   correctly rejected the extra `name` field with 422 → empty cookie → 401. The fix was in the
+   test, not the app — and it confirmed the validation hardening works. (A second red herring
+   along the way: re-sending the raw multi-attribute `Set-Cookie` string as a `Cookie` header;
+   switched to extracting just the `access_token` pair, as a browser does.) *Lesson: when a
+   test and a manual check disagree, suspect the test — and read the actual status code.*
 
 ## Supervision & verification
 
@@ -101,6 +136,16 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - Prisma Studio serves on :5555.
   - A note: `prisma migrate reset` is intentionally blocked for AI agents; the clean-room
     throwaway-DB approach was used instead — safer and equally rigorous.
+- **M2 (auth):**
+  - 13 automated e2e tests pass (signup, duplicate→409, invalid→422, wrong password→401, valid
+    login, `/me` with/without/invalid/expired token, customer→admin 403, admin→200 with no hash
+    leak, logout clears cookie).
+  - Verified live with a cookie jar: customer `/users` → 403, admin `/users` → 200, `/auth/me`
+    → 200 — confirming the guards behave correctly outside the test harness too.
+  - Rate limiting verified live: 10 logins succeed, the 11th–13th return 429.
+  - Error-shape consistency verified for 401/403/422/429 (proper reason phrases, no stack
+    traces).
+  - e2e suite is guarded to refuse any non-`test` database, so it can't wipe dev data.
 
 ## Design workflow
 
