@@ -7,6 +7,14 @@ import {
   ProductResponseDto,
   toProductResponse,
 } from './dto/product-response.dto';
+import { AdminProductQueryDto } from './dto/admin-product-query.dto';
+import {
+  AdminProductResponseDto,
+  PaginatedAdminProductsDto,
+  toAdminProductResponse,
+} from './dto/admin-product-response.dto';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -75,6 +83,58 @@ export class ProductsService {
       };
     }
     return where;
+  }
+
+  // --- Admin -----------------------------------------------------------------------
+
+  /** All products including inactive (admins manage the full catalog), paginated. */
+  async findAllForAdmin(query: AdminProductQueryDto): Promise<PaginatedAdminProductsDto> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.ProductWhereInput = query.search
+      ? { name: { contains: query.search, mode: 'insensitive' } }
+      : {};
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data: items.map(toAdminProductResponse),
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
+  async createProduct(dto: CreateProductDto): Promise<AdminProductResponseDto> {
+    // A duplicate SKU surfaces as Prisma P2002 -> 409 via the global exception filter.
+    const product = await this.prisma.product.create({ data: dto });
+    return toAdminProductResponse(product);
+  }
+
+  async updateProduct(id: string, dto: UpdateProductDto): Promise<AdminProductResponseDto> {
+    await this.ensureExists(id);
+    const product = await this.prisma.product.update({ where: { id }, data: dto });
+    return toAdminProductResponse(product);
+  }
+
+  /** Soft delete / reactivate. */
+  async setActive(id: string, isActive: boolean): Promise<AdminProductResponseDto> {
+    await this.ensureExists(id);
+    const product = await this.prisma.product.update({ where: { id }, data: { isActive } });
+    return toAdminProductResponse(product);
+  }
+
+  private async ensureExists(id: string): Promise<void> {
+    const exists = await this.prisma.product.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) {
+      throw new NotFoundException('Product not found');
+    }
   }
 
   private buildOrderBy(sort: ProductSort = ProductSort.NEWEST): Prisma.ProductOrderByWithRelationInput {

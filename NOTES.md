@@ -166,6 +166,43 @@ build progresses (not at the end).
 - **Money calculations:** integer cents only; server-recomputed totals; persisted authoritative
   total == Σ line totals; snapshots immutable.
 
+### Admin panel (Milestone 6) — role-gated surface over shared services
+- **One app, two surfaces (no duplicate stack):** `AdminModule` imports `ProductsModule` and
+  `OrdersModule` and adds three controllers (`admin/products`, `admin/orders`,
+  `admin/analytics`) plus an `AnalyticsService`. Admin behaviour reuses the *same* services as
+  the storefront — the only admin-specific service code is new methods (`findAllForAdmin`,
+  `createProduct`, `updateProduct`, `setActive`, `updateStatus`) and the read-only analytics.
+- **Authorization is the whole point:** every admin controller is class-level `@Roles(ADMIN)`.
+  With the globally-registered `JwtAuthGuard` + `RolesGuard`, a customer gets **403** and an
+  anonymous request **401** on every admin route — proven by an e2e loop over all three.
+- **Product management:**
+  - Admin listing returns **all** products incl. inactive (the public catalog hides inactive);
+    paginated, newest-first, optional name search.
+  - Create/edit use dedicated DTOs; **SKU is immutable** (`UpdateProductDto =
+    PartialType(OmitType(CreateProductDto, ['sku']))`). A duplicate SKU surfaces as Prisma
+    **P2002 → 409** via the global filter (no manual pre-check race).
+  - **Delete is soft** (`deactivate`/`reactivate` flip `isActive`) — never a hard delete, so
+    order-item snapshots and history stay intact, consistent with the M1 data-model contract.
+- **Order management & the state machine:** the lifecycle lives in **one** source of truth
+  (`order-state-machine.ts`): `PENDING→PROCESSING→SHIPPED→DELIVERED`, with `PENDING|PROCESSING
+  →CANCELLED`; `DELIVERED`/`CANCELLED` are terminal. `updateStatus` runs in a **transaction**:
+  it validates the transition (invalid → **409**), and **cancellation restocks every line
+  atomically with the status change**, so stock and status can never drift apart. The frontend
+  mirrors the same table (`orderTransitions.ts`) purely to render valid action buttons — the
+  server re-validates and remains the authority.
+- **Analytics (read-only):** a single service issues parallel aggregates — total sales
+  (**excluding cancelled**), total orders, counts grouped by status (zero-filled for every enum
+  value), top sellers by units from non-cancelled orders (grouped on the snapshot name), and the
+  five most recent orders. All money stays in integer cents.
+- **Frontend (fully integrated):** an `(admin)` route group with its own layout and a
+  **client-side ADMIN gate** (the server stays the real authority — every admin API requires
+  ADMIN). Dashboard with stat cards + a Recharts status bar chart + top-products and recent-
+  orders panels; a products screen (searchable, paginated table with inline create/edit form and
+  activate/deactivate); and an orders screen (status filter + customer search, expandable line
+  items, and state-machine-driven transition buttons). A role-gated **Admin** link appears in the
+  storefront header for admins, so the two surfaces connect end-to-end. TanStack Query mutations
+  invalidate the relevant caches (and the public catalog/analytics) so views stay consistent.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -217,6 +254,17 @@ it was caught.
    along the way: re-sending the raw multi-attribute `Set-Cookie` string as a `Cookie` header;
    switched to extracting just the `access_token` pair, as a browser does.) *Lesson: when a
    test and a manual check disagree, suspect the test — and read the actual status code.*
+6. **A latent e2e teardown bug exposed by a new suite (M6).** Adding `admin.e2e-spec.ts`
+   (alphabetically first, and it creates orders) made the cart suite fail at
+   `prisma.user.deleteMany()` with an `Order_userId_fkey` violation. Root cause was **not** the
+   new code: the cart suite's `beforeAll` cleanup deleted `orderItem` but never `order`, so it
+   only worked while no earlier suite left orders behind (pre-M6, `orders` ran *after* `cart`).
+   Jest reorders suites by timing, so the assumption was always fragile. Fixed by making cart's
+   teardown FK-complete (`order.deleteMany()` before `user.deleteMany()`, mirroring the orders
+   suite) and giving the admin suite a symmetric `afterAll` cleanup. The admin module's own
+   tests passed in isolation throughout — the failure was purely shared-DB test ordering.
+   *Lesson: shared-DB e2e suites must each be self-sufficient in FK-safe order; don't rely on
+   run order.*
 
 ## Supervision & verification
 
@@ -282,6 +330,18 @@ Nothing is accepted on a green build alone. Verification performed so far:
     nothing persisted), and snapshot immutability after later product edits.
   - Verified the entire checkout flow through the Next proxy (login → add → checkout → order
     detail → history → cart emptied) and that `/checkout`, `/orders`, `/orders/[id]` load.
+- **M6 (admin):**
+  - 10 admin e2e tests (RBAC: customer→403 and anon→401 across all three admin routes,
+    admin→200; product create/duplicate-SKU 409/validation 422/edit/deactivate→hidden from public
+    catalog/reactivate→visible again; state machine: valid forward transitions, invalid→409,
+    cancel-PENDING restores stock, cancel-DELIVERED→409 with stock unchanged, customer status
+    change→403; analytics: sales excludes cancelled, total count, counts by status, top product
+    units) — **48 tests total**, full suite green.
+  - **Caught a shared-DB teardown bug** the new suite exposed (FK ordering in `cart`'s cleanup)
+    and fixed it so the whole suite is order-independent — see "mistakes caught" #6.
+  - Frontend: `tsc --noEmit` clean and a full `next build` succeeds with the new `/admin`,
+    `/admin/products`, and `/admin/orders` routes (admin dashboard carries Recharts, ~225 kB
+    first load — acceptable for an admin-only screen).
 
 ## Design workflow
 

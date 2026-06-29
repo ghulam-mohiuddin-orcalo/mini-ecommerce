@@ -50,6 +50,14 @@ export function StoreHeader() {
               >
                 Orders
               </Link>
+              {user.role === 'ADMIN' && (
+                <Link
+                  href="/admin"
+                  className="rounded-lg px-3 py-2 font-medium text-brand-700 transition-colors hover:bg-brand-50"
+                >
+                  Admin
+                </Link>
+              )}
               <span className="hidden text-muted sm:inline">{user.name}</span>
               <button
                 onClick={() => logout.mutate(undefined, { onSuccess: () => router.push('/') })}

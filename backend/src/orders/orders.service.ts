@@ -5,12 +5,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentRequiredException } from '../common/exceptions/payment-required.exception';
 import { PAYMENT_PROVIDER, PaymentProvider } from '../payments/payment.interface';
 import { CheckoutDto } from './dto/checkout.dto';
 import { OrderResponseDto, toOrderResponse } from './dto/order-response.dto';
+import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
+import {
+  AdminOrderResponseDto,
+  PaginatedAdminOrdersDto,
+  toAdminOrderResponse,
+} from './dto/admin-order-response.dto';
+import { canTransition, isCancellation } from './order-state-machine';
 
 interface PreparedItem {
   productId: string;
@@ -133,5 +140,75 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
     return toOrderResponse(order);
+  }
+
+  // --- Admin -----------------------------------------------------------------------
+
+  /** All orders (admin), optionally filtered by status and customer name/email, paginated. */
+  async findAllForAdmin(query: AdminOrderQueryDto): Promise<PaginatedAdminOrdersDto> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.OrderWhereInput = {};
+    if (query.status) where.status = query.status;
+    if (query.search) {
+      where.user = {
+        OR: [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { email: { contains: query.search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    const [orders, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        include: { items: true, user: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      data: orders.map(toAdminOrderResponse),
+      meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
+  /**
+   * Admin status change, enforced by the state machine. Invalid transitions are rejected (409).
+   * Cancelling a PENDING/PROCESSING order restores each line's stock — atomically with the
+   * status change, so stock and status never drift apart.
+   */
+  async updateStatus(orderId: string, nextStatus: OrderStatus): Promise<AdminOrderResponseDto> {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+      if (!canTransition(order.status, nextStatus)) {
+        throw new ConflictException(
+          `Cannot change order status from ${order.status} to ${nextStatus}`,
+        );
+      }
+
+      if (isCancellation(nextStatus)) {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status: nextStatus },
+        include: { items: true, user: true },
+      });
+    });
+
+    return toAdminOrderResponse(updated);
   }
 }

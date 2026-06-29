@@ -47,6 +47,47 @@ export interface Cart {
   itemCount: number;
 }
 
+export interface AdminProduct {
+  id: string;
+  sku: string;
+  name: string;
+  description: string;
+  priceCents: number;
+  imageUrl: string;
+  category: string;
+  stock: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminOrder {
+  id: string;
+  status: OrderStatus;
+  totalCents: number;
+  createdAt: string;
+  customer: { id: string; name: string; email: string };
+  items: OrderItem[];
+}
+
+export interface Analytics {
+  totalSalesCents: number;
+  totalOrders: number;
+  ordersByStatus: Record<OrderStatus, number>;
+  topProducts: { productId: string; productName: string; unitsSold: number }[];
+  recentOrders: {
+    id: string;
+    customerName: string;
+    totalCents: number;
+    status: OrderStatus;
+    createdAt: string;
+  }[];
+}
+
+export interface Paginated2<T> {
+  data: T[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
 export interface Product {
   id: string;
   name: string;

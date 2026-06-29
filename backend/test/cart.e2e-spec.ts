@@ -46,6 +46,7 @@ describe('Cart (e2e)', () => {
     await prisma.cartItem.deleteMany();
     await prisma.cart.deleteMany();
     await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany(); // delete orders before users (Order→User is Restrict)
     await prisma.product.deleteMany();
     await prisma.user.deleteMany();
 

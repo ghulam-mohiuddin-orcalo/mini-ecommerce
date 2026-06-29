@@ -97,7 +97,10 @@ invalid/expired JWT, logout, RBAC), the product catalog (active-only visibility,
 search/category/price filters, sorting, pagination boundaries, 404s), and the cart
 (add/merge/update/remove, stock & active validation, totals, and **cross-user ownership
 isolation**), and checkout (transactional success, empty cart, payment decline, insufficient
-stock & inactive-product rollback, snapshot immutability, order ownership) — 38 tests total.
+stock & inactive-product rollback, snapshot immutability, order ownership), and the admin panel
+(RBAC on every admin route, product create/edit/activate with duplicate-SKU & validation
+handling, the order state machine with cancellation restock, and analytics correctness) —
+48 tests total.
 
 ## API (so far)
 
@@ -120,6 +123,14 @@ stock & inactive-product rollback, snapshot immutability, order ownership) — 3
 | POST | `/orders` | authenticated | Checkout: create an order from the cart (transactional) |
 | GET | `/orders` | authenticated | Current user's order history |
 | GET | `/orders/:id` | authenticated | One of the user's own orders (404 otherwise) |
+| GET | `/admin/products` | admin only | All products incl. inactive (`search`, `page`, `pageSize`) |
+| POST | `/admin/products` | admin only | Create a product (409 on duplicate SKU) |
+| PATCH | `/admin/products/:id` | admin only | Edit a product (SKU immutable) |
+| PATCH | `/admin/products/:id/deactivate` | admin only | Soft-delete (deactivate) a product |
+| PATCH | `/admin/products/:id/reactivate` | admin only | Reactivate a product |
+| GET | `/admin/orders` | admin only | All orders (`status`, customer `search`, `page`, `pageSize`) |
+| PATCH | `/admin/orders/:id/status` | admin only | Change status (state-machine enforced; cancel restocks) |
+| GET | `/admin/analytics` | admin only | Dashboard: sales, order counts by status, top products, recent orders |
 
 ## Useful commands (backend)
 
