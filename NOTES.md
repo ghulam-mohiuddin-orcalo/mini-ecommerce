@@ -74,6 +74,16 @@ build progresses (not at the end).
 - **No user enumeration on login:** identical 401 message for unknown email vs wrong password.
   (Signup necessarily reveals an email is taken — accepted trade-off.)
 
+### API documentation (Swagger / OpenAPI)
+- `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
+  **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
+- DTOs documented with `@ApiProperty`; controllers/endpoints with `@ApiTags`/`@ApiOperation`
+  and typed responses. Cookie auth (`access_token`) is registered via `addCookieAuth` and
+  applied to protected endpoints (`@ApiCookieAuth`) — matching our real auth scheme rather than
+  documenting an unused bearer scheme.
+- Mounted on the backend root path `/api/docs` (the Next proxy strips `/api`, so this is hit
+  directly on the API server at `http://localhost:3001/api/docs`).
+
 ### Tooling / dependency decisions
 - **`bcryptjs`** (pure JS) over native `bcrypt` — avoids a native build toolchain, a common
   clean-clone failure on Windows.

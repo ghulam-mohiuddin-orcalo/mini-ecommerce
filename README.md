@@ -57,6 +57,9 @@ cd frontend && npm run dev
 Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 (or through the proxy: `curl http://localhost:3000/api/health`).
 
+**API docs (Swagger UI):** http://localhost:3001/api/docs (OpenAPI JSON at
+`/api/docs-json`). Enabled in development; automatically disabled when `NODE_ENV=production`.
+
 ## Seeded login credentials
 
 | Role | Email | Password |

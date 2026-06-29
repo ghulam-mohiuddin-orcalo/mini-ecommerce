@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { SafeUser, toSafeUser } from './user.mapper';
+import { UserResponseDto, toSafeUser } from './user.mapper';
 
 interface CreateUserInput {
   email: string;
@@ -33,7 +33,7 @@ export class UsersService {
     });
   }
 
-  async findAllSafe(): Promise<SafeUser[]> {
+  async findAllSafe(): Promise<UserResponseDto[]> {
     const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'asc' } });
     return users.map(toSafeUser);
   }
