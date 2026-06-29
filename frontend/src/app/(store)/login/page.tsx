@@ -16,7 +16,10 @@ export default function LoginPage() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    login.mutate({ email, password }, { onSuccess: () => router.push('/products') });
+    login.mutate(
+      { email, password },
+      { onSuccess: (user) => router.replace(user.role === 'ADMIN' ? '/admin' : '/products') },
+    );
   };
 
   return (
