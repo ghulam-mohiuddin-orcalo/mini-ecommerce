@@ -118,6 +118,33 @@ describe('Auth (e2e)', () => {
     });
   });
 
+  describe('email normalization', () => {
+    const PASSWORD = 'Password123!';
+
+    it('stores a trimmed, lowercased email on signup', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send({ email: '  Mixed.Case@EXAMPLE.com  ', name: 'Norm User', password: PASSWORD });
+      expect(res.status).toBe(201);
+      expect(res.body.email).toBe('mixed.case@example.com');
+    });
+
+    it('treats a different-case signup as a duplicate (409)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send({ email: 'MIXED.CASE@example.com', name: 'Dup', password: PASSWORD });
+      expect(res.status).toBe(409);
+    });
+
+    it('lets the user log in regardless of email casing/whitespace', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: '  MIXED.CASE@Example.com ', password: PASSWORD });
+      expect(res.status).toBe(200);
+      expect(res.body.email).toBe('mixed.case@example.com');
+    });
+  });
+
   describe('/auth/me', () => {
     it('returns 401 without a token', async () => {
       const res = await request(app.getHttpServer()).get('/auth/me');

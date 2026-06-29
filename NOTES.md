@@ -404,6 +404,17 @@ Nothing is accepted on a green build alone. Verification performed so far:
     related-of-unknown-product fallback — **54 tests total**, full suite green.
   - Frontend `tsc --noEmit` clean and full `next build` succeeds with the strips wired into home,
     product detail, and post-checkout.
+- **Pre-submission polish:**
+  - **Email normalization** — signup/login now trim + lowercase the email at the validation
+    boundary (`@NormalizeEmail()` before `@IsEmail`), so duplicate detection and credential
+    lookup share one canonical form. Fixes a real defect where `User@x.com` and `user@x.com`
+    were distinct accounts and case affected login. Covered by 3 new e2e tests (57 e2e total).
+  - **Unit tests** — added a fast, DB-free Jest setup (`npm test`, `rootDir: src`) and a unit
+    suite for the order state machine (transition matrix, terminal states, no-op rejection,
+    `isCancellation`) — 12 tests. Complements the e2e suite without duplicating it.
+  - **Next.js App Router UX** — added root `loading.tsx`, `error.tsx` (error boundary wired to
+    `reset()`), and `not-found.tsx`, all reusing the existing `Skeleton`/`ErrorState`/
+    `EmptyState` primitives for a consistent look.
 
 ## Design workflow
 
