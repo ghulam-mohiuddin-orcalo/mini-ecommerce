@@ -20,41 +20,69 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6 px-4 py-16">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted">Sign in to your account.</p>
-      </div>
-
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="email" className="text-sm font-medium text-ink">Email</label>
-          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
+      <div className="grid overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)] md:grid-cols-2">
+        {/* Brand panel */}
+        <div
+          className="relative hidden flex-col justify-between overflow-hidden p-7 md:flex"
+          style={{ background: 'linear-gradient(160deg,#244B3C,#2C5D4A)' }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{ background: 'radial-gradient(120% 80% at 90% 0%,rgba(199,154,82,.28),transparent 55%)' }}
+          />
+          <div className="relative flex items-center gap-2.5">
+            <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-white/15 text-sm font-extrabold text-white">
+              P
+            </span>
+            <span className="font-bold text-white">Pine &amp; Parcel</span>
+          </div>
+          <div className="relative">
+            <h2 className="text-[22px] font-extrabold leading-tight tracking-tight text-white">
+              Welcome back.
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-white/80">
+              Your cart and orders, saved to your account across every session.
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-ink">Password</label>
-          <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
 
-        {login.isError && (
-          <p role="alert" className="text-sm text-[color:var(--color-danger)]">
-            {login.error instanceof ApiError ? login.error.message : 'Sign in failed'}
+        {/* Form */}
+        <form onSubmit={onSubmit} className="flex flex-col bg-surface p-7">
+          <h1 className="text-lg font-extrabold tracking-tight text-ink">Sign in</h1>
+          <p className="mt-1.5 text-sm text-muted">Sign in to your account.</p>
+
+          <div className="mt-5 flex flex-col gap-3.5">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="email" className="text-sm font-semibold text-ink">Email</label>
+              <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="password" className="text-sm font-semibold text-ink">Password</label>
+              <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+
+            {login.isError && (
+              <p role="alert" className="text-sm text-[color:var(--color-danger)]">
+                {login.error instanceof ApiError ? login.error.message : 'Sign in failed'}
+              </p>
+            )}
+
+            <Button type="submit" size="lg" disabled={login.isPending} className="mt-1 w-full">
+              {login.isPending ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </div>
+
+          <p className="mt-4 rounded-lg bg-[var(--color-warning-soft)] p-2.5 text-center text-xs text-[var(--color-warning-ink)]">
+            Demo: <strong>customer@shop.test</strong> / <strong>Customer123!</strong>
           </p>
-        )}
 
-        <Button type="submit" disabled={login.isPending}>
-          {login.isPending ? 'Signing in…' : 'Sign in'}
-        </Button>
-
-        <p className="text-center text-sm text-muted">
-          No account?{' '}
-          <Link href="/signup" className="font-medium text-brand-700 hover:underline">Create one</Link>
-        </p>
-      </form>
-
-      <p className="rounded-lg bg-brand-50 p-3 text-center text-xs text-brand-700">
-        Demo: <strong>customer@shop.test</strong> / <strong>Customer123!</strong>
-      </p>
+          <p className="mt-4 text-center text-sm text-muted">
+            No account?{' '}
+            <Link href="/signup" className="font-bold text-brand-600 hover:underline">Create one</Link>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

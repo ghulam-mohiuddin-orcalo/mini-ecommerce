@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Pagination } from '@/components/store/Pagination';
 import { AdminProductForm } from '@/components/admin/AdminProductForm';
+import { cn } from '@/lib/cn';
 import { formatPrice } from '@/lib/format';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useMe } from '@/lib/hooks/useAuth';
@@ -34,10 +35,24 @@ export default function AdminProductsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">Products</h1>
-        {!creating && !editing && <Button onClick={() => setCreating(true)}>Add product</Button>}
+        <div>
+          <h1 className="text-[28px] font-extrabold tracking-tight text-ink">Products</h1>
+          {data?.meta && (
+            <p className="mt-1 text-[13px] text-muted">
+              {data.meta.total} item{data.meta.total === 1 ? '' : 's'}
+            </p>
+          )}
+        </div>
+        {!creating && !editing && (
+          <Button onClick={() => setCreating(true)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add product
+          </Button>
+        )}
       </div>
 
       {(creating || editing) && (
@@ -63,53 +78,56 @@ export default function AdminProductsPage() {
         <EmptyState title="No products" />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-[var(--shadow-card)]">
             <table className="w-full text-sm">
-              <thead className="border-b border-line text-left text-muted">
-                <tr>
-                  <th className="p-3 font-medium">Product</th>
-                  <th className="p-3 font-medium">SKU</th>
-                  <th className="p-3 font-medium">Category</th>
-                  <th className="p-3 font-medium">Price</th>
-                  <th className="p-3 font-medium">Stock</th>
-                  <th className="p-3 font-medium">Status</th>
-                  <th className="p-3 font-medium">Actions</th>
+              <thead>
+                <tr className="border-b border-line bg-[#f7f3ec] text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
+                  <th className="px-[18px] py-3 font-bold">Product</th>
+                  <th className="px-[18px] py-3 font-bold">SKU</th>
+                  <th className="px-[18px] py-3 font-bold">Category</th>
+                  <th className="px-[18px] py-3 font-bold">Price</th>
+                  <th className="px-[18px] py-3 font-bold">Stock</th>
+                  <th className="px-[18px] py-3 font-bold">Status</th>
+                  <th className="px-[18px] py-3 text-right font-bold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className="divide-y divide-[var(--color-line-soft)]">
                 {data.data.map((p) => (
-                  <tr key={p.id} className={p.isActive ? '' : 'opacity-60'}>
-                    <td className="p-3">
+                  <tr
+                    key={p.id}
+                    className={cn('transition-colors hover:bg-[#fbf9f4]', !p.isActive && 'opacity-55')}
+                  >
+                    <td className="px-[18px] py-3">
                       <div className="flex items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={p.imageUrl} alt="" className="h-10 w-10 rounded-md border border-line object-cover" />
-                        <span className="font-medium text-ink">{p.name}</span>
+                        <img src={p.imageUrl} alt="" className="h-[38px] w-[38px] rounded-[9px] border border-line object-cover" />
+                        <span className="font-bold text-ink">{p.name}</span>
                       </div>
                     </td>
-                    <td className="p-3 text-muted">{p.sku}</td>
-                    <td className="p-3 text-muted">{p.category}</td>
-                    <td className="p-3 text-ink">{formatPrice(p.priceCents)}</td>
-                    <td className="p-3 text-ink">{p.stock}</td>
-                    <td className="p-3">
-                      <Badge tone={p.isActive ? 'brand' : 'danger'}>
+                    <td className="px-[18px] py-3 tabular-nums text-muted">{p.sku}</td>
+                    <td className="px-[18px] py-3 text-ink-soft">{p.category}</td>
+                    <td className="px-[18px] py-3 font-bold tabular-nums text-ink">{formatPrice(p.priceCents)}</td>
+                    <td className="px-[18px] py-3 font-semibold tabular-nums text-ink">{p.stock}</td>
+                    <td className="px-[18px] py-3">
+                      <Badge tone={p.isActive ? 'brand' : 'neutral'} dot>
                         {p.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
+                    <td className="px-[18px] py-3">
+                      <div className="flex justify-end gap-3.5 font-semibold">
                         <button
                           onClick={() => {
                             setEditing(p);
                             setCreating(false);
                           }}
-                          className="font-medium text-brand-700 hover:underline"
+                          className="text-brand-600 hover:underline"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setActive.mutate({ id: p.id, active: !p.isActive })}
                           disabled={setActive.isPending}
-                          className="font-medium text-muted hover:text-ink"
+                          className="text-muted hover:text-ink"
                         >
                           {p.isActive ? 'Deactivate' : 'Reactivate'}
                         </button>

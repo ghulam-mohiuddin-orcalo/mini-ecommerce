@@ -44,8 +44,14 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <button onClick={() => router.back()} className="mb-6 text-sm font-medium text-brand-700 hover:underline">
-        ← Back
+      <button
+        onClick={() => router.back()}
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-soft transition-colors hover:text-ink"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M19 12H5M11 18l-6-6 6-6" />
+        </svg>
+        Back
       </button>
 
       {isLoading ? (
@@ -63,53 +69,82 @@ export default function ProductDetailPage() {
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : product ? (
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div className="overflow-hidden rounded-2xl border border-line bg-brand-50">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
+          <div className="overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[#f0f5f2] to-[#dceae3]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={product.imageUrl} alt={product.name} className="aspect-square w-full object-cover" />
           </div>
 
-          <div className="flex flex-col gap-4">
-            <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-muted">{product.category}</span>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink">{product.name}</h1>
-            </div>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold uppercase tracking-[0.07em] text-muted">
+              {product.category}
+            </span>
+            <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-ink sm:text-[34px]">
+              {product.name}
+            </h1>
 
-            <p className="text-2xl font-semibold text-brand-700">{formatPrice(product.priceCents)}</p>
-
-            <div>
+            <div className="mt-4 flex flex-wrap items-center gap-3.5">
+              <span className="text-3xl font-extrabold tracking-tight text-brand-700">
+                {formatPrice(product.priceCents)}
+              </span>
               {outOfStock ? (
-                <Badge tone="danger">Out of stock</Badge>
+                <Badge tone="danger" dot>
+                  Out of stock
+                </Badge>
               ) : product.stock <= 5 ? (
-                <Badge tone="warning">Only {product.stock} left</Badge>
+                <Badge tone="warning" dot>
+                  Only {product.stock} left
+                </Badge>
               ) : (
-                <Badge tone="brand">In stock</Badge>
+                <Badge tone="brand" dot>
+                  In stock · {product.stock} available
+                </Badge>
               )}
             </div>
 
-            <p className="leading-relaxed text-muted">{product.description}</p>
+            <p className="mt-5 leading-relaxed text-ink-soft">{product.description}</p>
 
             {!outOfStock && (
-              <div className="mt-2 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <QuantitySelector value={qty} onChange={setQty} min={1} max={product.stock} />
-                  <Button onClick={onAdd} disabled={addToCart.isPending} size="lg">
-                    {addToCart.isPending ? 'Adding…' : user ? 'Add to cart' : 'Sign in to add'}
-                  </Button>
+              <>
+                <div className="my-7 h-px bg-line" />
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <QuantitySelector
+                      value={qty}
+                      onChange={setQty}
+                      min={1}
+                      max={product.stock}
+                      size="lg"
+                    />
+                    <Button onClick={onAdd} disabled={addToCart.isPending} size="lg" className="flex-1">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden="true">
+                        <path d="M6 6h15l-1.5 9h-12z" />
+                        <circle cx="9" cy="20" r="1.4" />
+                        <circle cx="18" cy="20" r="1.4" />
+                        <path d="M6 6 5 2H2" />
+                      </svg>
+                      {addToCart.isPending ? 'Adding…' : user ? 'Add to cart' : 'Sign in to add'}
+                    </Button>
+                  </div>
+
+                  {addToCart.isError && (
+                    <p role="alert" className="text-sm text-[color:var(--color-danger)]">
+                      {addToCart.error instanceof ApiError ? addToCart.error.message : 'Could not add to cart'}
+                    </p>
+                  )}
+                  {added && !addToCart.isPending && !addToCart.isError && (
+                    <p role="status" className="flex items-center gap-2 text-sm text-[color:var(--color-success)]">
+                      ✓ Added to cart.{' '}
+                      <Link href="/cart" className="font-medium underline">View cart</Link>
+                    </p>
+                  )}
                 </div>
 
-                {addToCart.isError && (
-                  <p role="alert" className="text-sm text-[color:var(--color-danger)]">
-                    {addToCart.error instanceof ApiError ? addToCart.error.message : 'Could not add to cart'}
-                  </p>
-                )}
-                {added && !addToCart.isPending && !addToCart.isError && (
-                  <p role="status" className="flex items-center gap-2 text-sm text-[color:var(--color-success)]">
-                    ✓ Added to cart.{' '}
-                    <Link href="/cart" className="font-medium underline">View cart</Link>
-                  </p>
-                )}
-              </div>
+                <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2.5">
+                  <TrustItem>Free 30-day returns</TrustItem>
+                  <TrustItem>Dispatched within 24h</TrustItem>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -128,9 +163,20 @@ export default function ProductDetailPage() {
   );
 }
 
+function TrustItem({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-[13px] font-semibold text-ink-soft">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand-500)" strokeWidth="2" aria-hidden="true">
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+      {children}
+    </span>
+  );
+}
+
 function DetailSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
       <Skeleton className="aspect-square w-full rounded-2xl" />
       <div className="flex flex-col gap-4">
         <Skeleton className="h-4 w-20" />

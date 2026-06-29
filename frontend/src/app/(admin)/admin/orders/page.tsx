@@ -3,7 +3,6 @@
 import { Fragment, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Pagination } from '@/components/store/Pagination';
@@ -13,6 +12,7 @@ import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useAdminOrders, useUpdateOrderStatus } from '@/lib/hooks/useAdmin';
 import { ALLOWED_TRANSITIONS, TRANSITION_LABEL } from '@/lib/orderTransitions';
+import { cn } from '@/lib/cn';
 import type { AdminOrder, OrderStatus } from '@/lib/types';
 
 const STATUS_OPTIONS: OrderStatus[] = [
@@ -37,38 +37,45 @@ export default function AdminOrdersPage() {
     isAdmin,
   );
 
-  return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-ink">Orders</h1>
+  const setFilter = (next: '' | OrderStatus) => {
+    setStatus(next);
+    setPage(1);
+  };
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value as '' | OrderStatus);
-            setPage(1);
-          }}
-          className="max-w-[12rem]"
-          aria-label="Filter by status"
-        >
-          <option value="">All statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s.charAt(0) + s.slice(1).toLowerCase()}
-            </option>
-          ))}
-        </Select>
-        <Input
-          type="search"
-          placeholder="Search by customer name or email…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="max-w-sm"
-        />
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="text-[28px] font-extrabold tracking-tight text-ink">Orders</h1>
+        {data?.meta && (
+          <p className="mt-1 text-[13px] text-muted">
+            {data.meta.total} order{data.meta.total === 1 ? '' : 's'}
+            {status ? ' (filtered)' : ' total'}
+          </p>
+        )}
       </div>
+
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter orders by status">
+        <FilterTab label="All" active={status === ''} onClick={() => setFilter('')} />
+        {STATUS_OPTIONS.map((s) => (
+          <FilterTab
+            key={s}
+            label={s.charAt(0) + s.slice(1).toLowerCase()}
+            active={status === s}
+            onClick={() => setFilter(s)}
+          />
+        ))}
+      </div>
+
+      <Input
+        type="search"
+        placeholder="Search by customer name or email…"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setPage(1);
+        }}
+        className="max-w-sm"
+      />
 
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
@@ -78,19 +85,19 @@ export default function AdminOrdersPage() {
         <EmptyState title="No orders" description="No orders match the current filters." />
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+          <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-[var(--shadow-card)]">
             <table className="w-full text-sm">
-              <thead className="border-b border-line text-left text-muted">
-                <tr>
-                  <th className="p-3 font-medium">Order</th>
-                  <th className="p-3 font-medium">Customer</th>
-                  <th className="p-3 font-medium">Date</th>
-                  <th className="p-3 font-medium">Total</th>
-                  <th className="p-3 font-medium">Status</th>
-                  <th className="p-3 font-medium">Actions</th>
+              <thead>
+                <tr className="border-b border-line bg-[#f7f3ec] text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
+                  <th className="px-[18px] py-3 font-bold">Order</th>
+                  <th className="px-[18px] py-3 font-bold">Customer</th>
+                  <th className="px-[18px] py-3 font-bold">Date</th>
+                  <th className="px-[18px] py-3 font-bold">Total</th>
+                  <th className="px-[18px] py-3 font-bold">Status</th>
+                  <th className="px-[18px] py-3 font-bold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody className="divide-y divide-[var(--color-line-soft)]">
                 {data.data.map((order) => (
                   <OrderRow key={order.id} order={order} />
                 ))}
@@ -104,6 +111,40 @@ export default function AdminOrdersPage() {
       )}
     </div>
   );
+}
+
+function FilterTab({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'rounded-full px-4 py-2 text-[13px] font-semibold transition-colors',
+        active
+          ? 'bg-brand-600 text-white'
+          : 'border border-line bg-surface text-ink-soft hover:bg-paper-2',
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function initialsOf(name: string) {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
 }
 
 function OrderRow({ order }: { order: AdminOrder }) {
@@ -121,11 +162,11 @@ function OrderRow({ order }: { order: AdminOrder }) {
 
   return (
     <Fragment>
-      <tr className="align-top">
-        <td className="p-3">
+      <tr className="align-top transition-colors hover:bg-[#fbf9f4]">
+        <td className="px-[18px] py-3">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="font-medium text-brand-700 hover:underline"
+            className="font-bold tabular-nums text-brand-700 hover:underline"
             aria-expanded={open}
           >
             #{order.id.slice(-8)}
@@ -134,16 +175,26 @@ function OrderRow({ order }: { order: AdminOrder }) {
             {itemCount} item{itemCount === 1 ? '' : 's'}
           </div>
         </td>
-        <td className="p-3">
-          <div className="font-medium text-ink">{order.customer.name}</div>
-          <div className="text-xs text-muted">{order.customer.email}</div>
+        <td className="px-[18px] py-3">
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden="true"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700"
+            >
+              {initialsOf(order.customer.name)}
+            </span>
+            <div className="leading-tight">
+              <div className="font-bold text-ink">{order.customer.name}</div>
+              <div className="text-xs text-muted">{order.customer.email}</div>
+            </div>
+          </div>
         </td>
-        <td className="p-3 text-muted">{formatDate(order.createdAt)}</td>
-        <td className="p-3 font-semibold text-ink">{formatPrice(order.totalCents)}</td>
-        <td className="p-3">
+        <td className="px-[18px] py-3 text-ink-soft">{formatDate(order.createdAt)}</td>
+        <td className="px-[18px] py-3 font-extrabold tabular-nums text-ink">{formatPrice(order.totalCents)}</td>
+        <td className="px-[18px] py-3">
           <OrderStatusBadge status={order.status} />
         </td>
-        <td className="p-3">
+        <td className="px-[18px] py-3">
           {transitions.length === 0 ? (
             <span className="text-xs text-muted">No actions</span>
           ) : (
@@ -164,9 +215,9 @@ function OrderRow({ order }: { order: AdminOrder }) {
         </td>
       </tr>
       {open && (
-        <tr className="bg-paper/60">
-          <td colSpan={6} className="p-3">
-            <ul className="flex flex-col divide-y divide-line">
+        <tr className="bg-paper-2/60">
+          <td colSpan={6} className="px-[18px] py-3">
+            <ul className="flex flex-col divide-y divide-[var(--color-line-soft)]">
               {order.items.map((it) => (
                 <li key={it.productId} className="flex items-center justify-between gap-3 py-2 text-sm">
                   <div className="flex items-center gap-3">
@@ -174,13 +225,13 @@ function OrderRow({ order }: { order: AdminOrder }) {
                     <img
                       src={it.productImageUrl}
                       alt=""
-                      className="h-9 w-9 rounded-md border border-line object-cover"
+                      className="h-9 w-9 rounded-[9px] border border-line object-cover"
                     />
-                    <span className="text-ink">{it.productName}</span>
+                    <span className="font-semibold text-ink">{it.productName}</span>
                   </div>
                   <span className="text-muted">
                     {it.quantity} × {formatPrice(it.unitPriceCents)} ={' '}
-                    <span className="font-medium text-ink">{formatPrice(it.lineTotalCents)}</span>
+                    <span className="font-bold text-ink">{formatPrice(it.lineTotalCents)}</span>
                   </span>
                 </li>
               ))}

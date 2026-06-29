@@ -2,6 +2,13 @@
 
 import { cn } from '@/lib/cn';
 
+type Size = 'sm' | 'lg';
+
+const sizes: Record<Size, { box: string; cell: string; value: string; sign: string }> = {
+  sm: { box: 'rounded-[10px]', cell: 'h-9 w-9', value: 'h-9 w-10 text-sm', sign: 'text-lg' },
+  lg: { box: 'rounded-xl', cell: 'h-12 w-11', value: 'h-12 w-12 text-base', sign: 'text-xl' },
+};
+
 /** Accessible − / value / + stepper, clamped to [min, max]. */
 export function QuantitySelector({
   value,
@@ -9,6 +16,7 @@ export function QuantitySelector({
   min = 1,
   max = 99,
   disabled = false,
+  size = 'sm',
   className,
 }: {
   value: number;
@@ -16,19 +24,31 @@ export function QuantitySelector({
   min?: number;
   max?: number;
   disabled?: boolean;
+  size?: Size;
   className?: string;
 }) {
   const clamp = (n: number) => Math.max(min, Math.min(max, n));
   const set = (n: number) => onChange(clamp(n));
+  const s = sizes[size];
 
   return (
-    <div className={cn('inline-flex items-center rounded-lg border border-line bg-surface', className)}>
+    <div
+      className={cn(
+        'inline-flex items-center overflow-hidden border border-[#d9d3c8] bg-surface',
+        s.box,
+        className,
+      )}
+    >
       <button
         type="button"
         onClick={() => set(value - 1)}
         disabled={disabled || value <= min}
         aria-label="Decrease quantity"
-        className="grid h-9 w-9 place-items-center rounded-l-lg text-lg text-ink transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
+        className={cn(
+          'grid place-items-center text-ink-soft transition-colors hover:bg-paper-2 disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent',
+          s.cell,
+          s.sign,
+        )}
       >
         −
       </button>
@@ -44,14 +64,21 @@ export function QuantitySelector({
           const n = Number(e.target.value);
           if (!Number.isNaN(n)) set(n);
         }}
-        className="h-9 w-12 border-x border-line bg-transparent text-center text-sm text-ink focus-visible:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+        className={cn(
+          'border-x border-line bg-transparent text-center font-bold text-ink focus-visible:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
+          s.value,
+        )}
       />
       <button
         type="button"
         onClick={() => set(value + 1)}
         disabled={disabled || value >= max}
         aria-label="Increase quantity"
-        className="grid h-9 w-9 place-items-center rounded-r-lg text-lg text-ink transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40"
+        className={cn(
+          'grid place-items-center text-ink-soft transition-colors hover:bg-paper-2 disabled:cursor-not-allowed disabled:text-faint disabled:hover:bg-transparent',
+          s.cell,
+          s.sign,
+        )}
       >
         +
       </button>
