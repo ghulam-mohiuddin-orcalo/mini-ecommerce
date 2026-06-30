@@ -6,6 +6,10 @@ export class OrderItemResponseDto {
   @ApiProperty({ description: 'Snapshot of the product name at order time' })
   productName!: string;
   @ApiProperty() productImageUrl!: string;
+  @ApiProperty({ nullable: true, description: 'Chosen variant id, or null for variant-less items' })
+  variantId!: string | null;
+  @ApiProperty({ nullable: true, description: 'Snapshot of the variant label at order time' })
+  variantLabel!: string | null;
   @ApiProperty({ description: 'Snapshot of the unit price at order time, in cents' })
   unitPriceCents!: number;
   @ApiProperty() quantity!: number;
@@ -36,6 +40,8 @@ export function toOrderResponse(order: OrderWithItems): OrderResponseDto {
       productId: it.productId,
       productName: it.productName,
       productImageUrl: it.productImageUrl,
+      variantId: it.variantId,
+      variantLabel: it.variantLabel,
       unitPriceCents: it.unitPriceCents,
       quantity: it.quantity,
       lineTotalCents: it.unitPriceCents * it.quantity,

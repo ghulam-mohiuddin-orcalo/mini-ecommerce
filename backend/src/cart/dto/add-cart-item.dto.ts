@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString, Length, Max, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator';
 
 export class AddCartItemDto {
   @ApiProperty({ example: 'cuid_abc123' })
@@ -12,4 +12,12 @@ export class AddCartItemDto {
   @Min(1)
   @Max(1000)
   quantity!: number;
+
+  @ApiPropertyOptional({
+    example: 'cuid_variant123',
+    description: 'Chosen product variant. Omit for products without variants.',
+  })
+  @IsOptional()
+  @IsString()
+  variantId?: string;
 }

@@ -15,6 +15,8 @@ import { OrdersModule } from './orders/orders.module';
 import { StripeModule } from './payments/stripe.module';
 import { AdminModule } from './admin/admin.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
+import { WishlistModule } from './wishlist/wishlist.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
     StripeModule,
     AdminModule,
     RecommendationsModule,
+    WishlistModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [

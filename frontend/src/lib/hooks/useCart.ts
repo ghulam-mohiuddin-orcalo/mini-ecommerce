@@ -24,23 +24,36 @@ function useCartMutation<TArgs>(fn: (args: TArgs) => Promise<Cart>) {
 }
 
 export function useAddToCart() {
-  return useCartMutation((body: { productId: string; quantity: number }) =>
+  return useCartMutation((body: { productId: string; quantity: number; variantId?: string }) =>
     apiFetch<Cart>('/cart/items', { method: 'POST', body: JSON.stringify(body) }),
   );
 }
 
 export function useUpdateCartItem() {
-  return useCartMutation(({ productId, quantity }: { productId: string; quantity: number }) =>
-    apiFetch<Cart>(`/cart/items/${productId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ quantity }),
-    }),
+  return useCartMutation(
+    ({
+      productId,
+      quantity,
+      variantId,
+    }: {
+      productId: string;
+      quantity: number;
+      variantId?: string | null;
+    }) =>
+      apiFetch<Cart>(`/cart/items/${productId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity, variantId: variantId ?? undefined }),
+      }),
   );
 }
 
 export function useRemoveCartItem() {
-  return useCartMutation((productId: string) =>
-    apiFetch<Cart>(`/cart/items/${productId}`, { method: 'DELETE' }),
+  return useCartMutation(
+    ({ productId, variantId }: { productId: string; variantId?: string | null }) =>
+      apiFetch<Cart>(
+        `/cart/items/${productId}${variantId ? `?variantId=${encodeURIComponent(variantId)}` : ''}`,
+        { method: 'DELETE' },
+      ),
   );
 }
 

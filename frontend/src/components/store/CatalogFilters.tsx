@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
+import { Rating } from '@/components/ui/Rating';
+import { cn } from '@/lib/cn';
+import { formatPrice } from '@/lib/format';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import type { ProductQuery } from '@/lib/types';
 
@@ -17,16 +20,27 @@ const dollarsToCents = (dollars: string): number | undefined => {
   return Math.round(n * 100);
 };
 
+const RATING_THRESHOLDS = [4, 3, 2, 1] as const;
+
+/**
+ * Catalog sidebar filters. Category / price / search drive the server `ProductQuery`. The rating
+ * threshold (`minRating`) is intentionally a CLIENT-SIDE filter applied by the catalog page to the
+ * returned page of products — the API has no rating filter param, so we narrow what came back.
+ */
 export function CatalogFilters({
   value,
   categories,
+  minRating,
   onChange,
+  onRatingChange,
   onClear,
   hasActiveFilters,
 }: {
   value: ProductQuery;
   categories: string[];
+  minRating: number | undefined;
   onChange: (partial: Partial<ProductQuery>) => void;
+  onRatingChange: (rating: number | undefined) => void;
   onClear: () => void;
   hasActiveFilters: boolean;
 }) {
@@ -74,8 +88,18 @@ export function CatalogFilters({
     if (document.activeElement !== maxRef.current) setMaxDollars(centsToDollars(value.maxPrice));
   }, [value.maxPrice]);
 
+  const chips: { key: string; label: string; onRemove: () => void }[] = [];
+  if (value.search) chips.push({ key: 'search', label: `“${value.search}”`, onRemove: () => onChange({ search: undefined }) });
+  if (value.category) chips.push({ key: 'category', label: value.category, onRemove: () => onChange({ category: undefined }) });
+  if (value.minPrice !== undefined)
+    chips.push({ key: 'min', label: `≥ ${formatPrice(value.minPrice)}`, onRemove: () => onChange({ minPrice: undefined }) });
+  if (value.maxPrice !== undefined)
+    chips.push({ key: 'max', label: `≤ ${formatPrice(value.maxPrice)}`, onRemove: () => onChange({ maxPrice: undefined }) });
+  if (minRating !== undefined)
+    chips.push({ key: 'rating', label: `${minRating}★ & up`, onRemove: () => onRatingChange(undefined) });
+
   return (
-    <div className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-card)]">
+    <div className="flex flex-col gap-6 rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between">
         <h3 className="text-[15px] font-extrabold tracking-tight text-ink">Filters</h3>
         {hasActiveFilters && (
@@ -83,42 +107,87 @@ export function CatalogFilters({
             onClick={onClear}
             className="text-xs font-semibold text-[var(--color-danger)] transition-colors hover:underline"
           >
-            Clear
+            Clear all
           </button>
         )}
       </div>
+
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <button
+              key={chip.key}
+              onClick={chip.onRemove}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-200 dark:text-brand-300"
+            >
+              {chip.label}
+              <Icon name="x" size={12} />
+              <span className="sr-only">Remove filter</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="search" className="sr-only">
           Search
         </label>
-        <Input
-          id="search"
-          ref={searchRef}
-          type="search"
-          placeholder="Search products…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+            <Icon name="search" size={16} />
+          </span>
+          <Input
+            id="search"
+            ref={searchRef}
+            type="search"
+            placeholder="Search products…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor="category" className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
           Category
-        </label>
-        <Select
-          id="category"
-          value={value.category ?? ''}
-          onChange={(e) => onChange({ category: e.target.value || undefined })}
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </Select>
-      </div>
+        </legend>
+        <ul className="flex flex-col gap-0.5">
+          <li>
+            <button
+              onClick={() => onChange({ category: undefined })}
+              aria-pressed={!value.category}
+              className={cn(
+                'w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
+                !value.category
+                  ? 'bg-brand-50 text-brand-700 dark:text-brand-300'
+                  : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+              )}
+            >
+              All categories
+            </button>
+          </li>
+          {categories.map((c) => {
+            const active = value.category === c;
+            return (
+              <li key={c}>
+                <button
+                  onClick={() => onChange({ category: active ? undefined : c })}
+                  aria-pressed={active}
+                  className={cn(
+                    'w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
+                    active
+                      ? 'bg-brand-50 text-brand-700 dark:text-brand-300'
+                      : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+                  )}
+                >
+                  {c}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </fieldset>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
@@ -152,6 +221,32 @@ export function CatalogFilters({
             />
           </div>
         </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
+          Customer rating
+        </legend>
+        <ul className="flex flex-col gap-0.5">
+          {RATING_THRESHOLDS.map((threshold) => {
+            const active = minRating === threshold;
+            return (
+              <li key={threshold}>
+                <button
+                  onClick={() => onRatingChange(active ? undefined : threshold)}
+                  aria-pressed={active}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
+                    active ? 'bg-brand-50 text-ink' : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+                  )}
+                >
+                  <Rating value={threshold} size="sm" />
+                  <span>&amp; up</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </fieldset>
     </div>
   );

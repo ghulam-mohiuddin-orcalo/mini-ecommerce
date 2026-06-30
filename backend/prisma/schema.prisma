@@ -32,6 +32,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -41,33 +46,82 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  cart   Cart?
-  orders Order[]
+  cart                Cart?
+  orders              Order[]
+  reviews             Review[]
+  addresses           Address[]
+  wishlistItems       WishlistItem[]
+  passwordResetTokens PasswordResetToken[]
 
   @@index([role])
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  sku         String   @unique // stable natural key — also the idempotent upsert key for seeding
-  name        String
-  description String
-  priceCents  Int // price in minor units (e.g. 1999 = $19.99)
-  imageUrl    String
-  category    String
-  stock       Int      @default(0)
-  isActive    Boolean  @default(true) // soft-delete flag; false = hidden from catalog
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  sku                 String   @unique // stable natural key — also the idempotent upsert key for seeding
+  name                String
+  description         String
+  priceCents          Int // price in minor units (e.g. 1999 = $19.99)
+  // Optional "was" / strike-through price for sale displays. When set it must be > 0
+  // (enforced via CHECK). The Sale badge is DERIVED at query time from this column being
+  // non-null and greater than priceCents — never stored as a badge flag.
+  compareAtPriceCents Int?
+  imageUrl            String // primary / fallback image; the gallery lives in ProductImage
+  category            String
+  stock               Int      @default(0)
+  isActive            Boolean  @default(true) // soft-delete flag; false = hidden from catalog
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  cartItems  CartItem[]
-  orderItems OrderItem[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  images        ProductImage[]
+  variants      ProductVariant[]
+  reviews       Review[]
+  wishlistItems WishlistItem[]
 
   // Catalog queries always scope to active products and then filter/sort by
   // category, price, or recency — these composite indexes back those access paths.
   @@index([isActive, category])
   @@index([isActive, createdAt])
   @@index([isActive, priceCents])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String
+  alt       String?
+  position  Int     @default(0) // gallery display order, ascending
+
+  // Cascade: gallery images are owned by their product and have no meaning without it.
+  // (A product with order history can't be hard-deleted — OrderItem uses Restrict — so
+  // in practice this only fires for products that were never ordered.)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position]) // "fetch a product's gallery in order"
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  label      String // human-readable, e.g. "Black / M"
+  color      String?
+  size       String?
+  priceCents Int // variant-specific price (CHECK: >= 0)
+  stock      Int      @default(0) // variant-specific stock (CHECK: >= 0)
+  sku        String   @unique // stable natural key; also the idempotent seed upsert key
+  position   Int      @default(0) // display order within the product
+  isActive   Boolean  @default(true) // soft-disable a variant without deleting it
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Cascade: a variant is owned by its product (same reasoning as ProductImage).
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([productId, position])
 }
 
 model Cart {
@@ -86,35 +140,45 @@ model CartItem {
   id        String   @id @default(cuid())
   cartId    String
   productId String
+  // Optional variant selection. NULL = a zero-variant product (legacy behaviour, byte-for-byte
+  // unchanged). Postgres treats NULLs as distinct in a composite unique, which is fine here:
+  // a variant-less product still yields exactly one line per (cart, product) because variantId
+  // is consistently NULL for it.
+  variantId String?
   quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cart    Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
   // A live product reference. If a product were ever hard-deleted, its cart rows go
   // with it (a cart line to a non-existent product is meaningless). Note: a product
   // that has order history can't be hard-deleted (OrderItem uses Restrict), so the
   // normal path is soft-delete + a checkout-time validity check.
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // Cascade (mirrors the product relation above): a cart line is ephemeral, pre-purchase
+  // state. If the chosen variant is hard-deleted the line is meaningless and goes with it,
+  // exactly as it does when the product itself is removed. (Order history is unaffected —
+  // OrderItem.variant uses Restrict to protect it.)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
-  @@unique([cartId, productId]) // one line per product; quantity is updated in place
+  @@unique([cartId, productId, variantId]) // one line per (product, variant); quantity updated in place
   @@index([productId])
 }
 
 model Order {
-  id         String      @id @default(cuid())
-  userId     String
-  status     OrderStatus @default(PENDING)
-  totalCents Int // authoritative charged amount, computed server-side from snapshots
+  id              String      @id @default(cuid())
+  userId          String
+  status          OrderStatus @default(PENDING)
+  totalCents      Int // authoritative charged amount, computed server-side from snapshots
   // Payment metadata (kept on the order so it is self-contained / auditable).
   // paymentRef holds the provider reference (Stripe PaymentIntent id, or a mock ref).
-  paymentRef String?
-  paidAt     DateTime?
+  paymentRef      String?
+  paidAt          DateTime?
   // Stripe Checkout Session id. UNIQUE so webhook fulfillment is idempotent: a duplicate
   // `checkout.session.completed` delivery can never create a second order for the same session.
-  stripeSessionId String? @unique
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  stripeSessionId String?     @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   // Restrict: a customer with order history cannot be deleted — financial/audit
   // records must be preserved. Deletion would require archiving first, by design.
@@ -126,24 +190,184 @@ model Order {
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   orderId   String
   productId String
+  // Optional variant reference. NULL for zero-variant products (unchanged behaviour).
+  variantId String?
 
   // --- Immutable snapshot taken at order time (do NOT read live product fields) ---
   productName     String
   productImageUrl String
   productCategory String
+  // Variant label snapshot (e.g. "Black / M"); NULL when no variant. The variant's unit
+  // price at order time is already captured in unitPriceCents below.
+  variantLabel    String?
   unitPriceCents  Int
   quantity        Int
 
   // Cascade: order items are an integral part of their order; deleting the order
   // (an explicit admin/archival action) removes them.
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // Restrict: you cannot hard-delete a product that appears in any order. This is the
   // backstop that protects historical orders and forces the soft-delete path instead.
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  // Restrict (same rationale as product): a variant referenced by any order cannot be
+  // hard-deleted — the snapshot (variantLabel + unitPriceCents) keeps history readable,
+  // but the FK still protects the audit trail and forces soft-disable (isActive=false).
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([productId]) // top-selling-products aggregation groups by productId
+}
+
+// --- Engagement: reviews, addresses, wishlist -----------------------------------------
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String
+  rating    Int // 1..5, enforced via CHECK
+  title     String?
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Cascade: a review is owned jointly by the product and the author; if either is hard-
+  // deleted the review goes with it. (Products with order history can't be hard-deleted.)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId]) // one review per user per product (edit in place)
+  @@index([productId, createdAt]) // "a product's reviews, newest first"
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  label     String // e.g. "Home", "Work"
+  fullName  String
+  line1     String
+  line2     String?
+  city      String
+  postcode  String
+  country   String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Cascade: addresses are personal data owned by the user; remove with the user.
+  // (Orders snapshot what they need; they don't FK to Address.)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  // Cascade on both sides: a wishlist entry is a pure association with no standalone value.
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId]) // a product appears at most once on a user's wishlist
+  @@index([userId, createdAt]) // "my wishlist, newest first"
+}
+
+// --- CMS: articles, FAQ, content blocks, contact messages -----------------------------
+
+model ArticleCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique // URL key; also the idempotent seed upsert key
+  name      String
+  createdAt DateTime @default(now())
+
+  articles Article[]
+}
+
+model Article {
+  id          String        @id @default(cuid())
+  slug        String        @unique // URL key; also the idempotent seed upsert key
+  title       String
+  excerpt     String
+  body        String // markdown / rich text
+  coverUrl    String
+  author      String
+  status      ArticleStatus @default(DRAFT)
+  publishedAt DateTime?
+  categoryId  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // SetNull: deleting a category should not delete its articles; they become uncategorised.
+  category ArticleCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt]) // "published articles, newest first"
+}
+
+model FaqCategory {
+  id        String   @id @default(cuid())
+  slug      String   @unique // URL key; also the idempotent seed upsert key
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  items FaqItem[]
+}
+
+model FaqItem {
+  id         String   @id @default(cuid())
+  question   String
+  body       String
+  position   Int      @default(0)
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Cascade: FAQ items belong to their category and have no meaning without it.
+  category FaqCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, position]) // "a category's questions in display order"
+}
+
+model ContentBlock {
+  // `key` is the primary key AND the natural/idempotent identifier (e.g. "about", "privacy").
+  key       String   @id
+  title     String
+  body      String // markdown / JSON text for static pages
+  updatedAt DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  body      String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([handled, createdAt]) // admin inbox: unhandled first / newest first
+}
+
+// --- Auth: password reset ------------------------------------------------------------
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  // Store ONLY a hash of the token (the raw token is emailed and never persisted),
+  // so a DB leak can't be used to reset accounts.
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // Cascade: reset tokens are throwaway credentials tied to the user's lifetime.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash]) // lookup path when validating a presented token
 }

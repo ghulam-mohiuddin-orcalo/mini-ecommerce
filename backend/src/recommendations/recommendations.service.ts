@@ -133,7 +133,7 @@ export class RecommendationsService {
       ranked.push(...fillers);
     }
 
-    return ranked.slice(0, limit).map(toProductResponse);
+    return ranked.slice(0, limit).map((p) => toProductResponse(p));
   }
 
   /**
@@ -161,7 +161,7 @@ export class RecommendationsService {
         return a.id.localeCompare(b.id);
       })
       .slice(0, limit)
-      .map(toProductResponse);
+      .map((p) => toProductResponse(p));
   }
 }
 

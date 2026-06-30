@@ -162,7 +162,7 @@ export function CheckoutForm({
     <form ref={formRef} noValidate onSubmit={onSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-6">
         {/* Shipping */}
-        <Card icon="package" title="Shipping information">
+        <Card icon="package" title="Shipping information" step={1}>
           <AddressFields
             idPrefix="ship"
             value={shipping}
@@ -199,7 +199,7 @@ export function CheckoutForm({
         </Card>
 
         {/* Payment */}
-        <Card icon="lock" title="Payment">
+        <Card icon="lock" title="Payment" step={2}>
           <p className="mb-4 flex items-center gap-2 text-[13px] text-muted">
             <Icon name="shield-check" size={15} className="text-brand-500 dark:text-brand-300" />
             Encrypted and processed securely by Stripe. Test card{' '}
@@ -227,7 +227,7 @@ export function CheckoutForm({
 
           <ul className="mt-4 flex flex-col divide-y divide-[var(--color-line-soft)]">
             {cart.items.map((line) => (
-              <li key={line.productId} className="flex items-center gap-3 py-3">
+              <li key={`${line.productId}:${line.variantId ?? 'base'}`} className="flex items-center gap-3 py-3">
                 <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-50 to-brand-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={line.imageUrl} alt="" className="h-full w-full object-cover" />
@@ -237,6 +237,9 @@ export function CheckoutForm({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-1 text-sm font-semibold text-ink">{line.name}</p>
+                  {line.variantLabel ? (
+                    <p className="line-clamp-1 text-xs text-muted">{line.variantLabel}</p>
+                  ) : null}
                   <p className="text-xs text-muted">{formatPrice(line.unitPriceCents)} each</p>
                 </div>
                 <span className="text-sm font-bold tabular-nums text-ink">
@@ -486,7 +489,17 @@ function Field({
   );
 }
 
-function Card({ icon, title, children }: { icon: Parameters<typeof Icon>[0]['name']; title: string; children: ReactNode }) {
+function Card({
+  icon,
+  title,
+  step,
+  children,
+}: {
+  icon: Parameters<typeof Icon>[0]['name'];
+  title: string;
+  step?: number;
+  children: ReactNode;
+}) {
   return (
     <section className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)] sm:p-7">
       <div className="mb-5 flex items-center gap-3">
@@ -494,6 +507,14 @@ function Card({ icon, title, children }: { icon: Parameters<typeof Icon>[0]['nam
           <Icon name={icon} size={17} />
         </span>
         <h2 className="text-base font-extrabold tracking-tight text-ink">{title}</h2>
+        {step != null && (
+          <span
+            aria-hidden="true"
+            className="ml-auto text-xs font-bold uppercase tracking-[0.08em] text-faint"
+          >
+            Step {step}
+          </span>
+        )}
       </div>
       {children}
     </section>

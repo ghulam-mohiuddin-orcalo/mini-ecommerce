@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { usePaymentIntentStatus, useSessionStatus } from '@/lib/hooks/usePayments';
@@ -45,6 +46,7 @@ function CheckoutSuccess() {
   if (!hasReference) {
     return (
       <EmptyState
+        icon={<Icon name="info" size={28} />}
         title="Missing payment reference"
         description="This page should be reached from the checkout payment step."
         action={<Link href="/cart"><Button>Back to cart</Button></Link>}
@@ -59,6 +61,7 @@ function CheckoutSuccess() {
   if (data?.status === 'expired') {
     return (
       <EmptyState
+        icon={<Icon name="x-circle" size={28} />}
         title="This payment didn’t complete"
         description="No order was placed. You can start over from your cart."
         action={<Link href="/cart"><Button>Back to cart</Button></Link>}
@@ -66,12 +69,35 @@ function CheckoutSuccess() {
     );
   }
 
-  // pending / not-yet-fulfilled → keep waiting (useSessionStatus polls in the background).
+  // complete → the effect above redirects to the order page; show a celebratory hand-off so the
+  // brief window before navigation never flashes the "confirming" spinner.
+  if (data?.status === 'complete') {
+    return (
+      <div className="pp-rise flex flex-col items-center justify-center gap-4 rounded-2xl border border-line bg-surface px-6 py-16 text-center shadow-[var(--shadow-card)]">
+        <span
+          aria-hidden="true"
+          className="grid h-16 w-16 place-items-center rounded-full bg-brand-50 text-success ring-1 ring-brand-200"
+        >
+          <Icon name="check-circle" size={32} />
+        </span>
+        <p className="font-serif text-[26px] font-medium tracking-tight text-ink">Payment confirmed</p>
+        <p className="max-w-sm text-sm leading-relaxed text-muted">
+          Thank you — your order is placed. Taking you to your confirmation…
+        </p>
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+          <Link href="/orders"><Button>View my orders</Button></Link>
+          <Link href="/products"><Button variant="secondary">Continue shopping</Button></Link>
+        </div>
+      </div>
+    );
+  }
+
+  // pending / not-yet-fulfilled → keep waiting (the status hook polls in the background).
   return (
     <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-line bg-surface px-6 py-16 text-center shadow-[var(--shadow-card)]">
       <span
         aria-hidden="true"
-        className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-200 border-t-brand-600"
+        className="h-9 w-9 animate-spin rounded-full border-[3px] border-brand-200 border-t-brand-600 motion-reduce:animate-none"
       />
       <p className="text-base font-extrabold tracking-tight text-ink">Confirming your payment…</p>
       <p className="max-w-sm text-sm leading-relaxed text-muted">

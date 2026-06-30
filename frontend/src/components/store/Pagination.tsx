@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 
 /** Build a compact, windowed page list with ellipses, e.g. 1 … 4 5 6 … 12. */
@@ -42,7 +43,7 @@ export function Pagination({
           'disabled:cursor-not-allowed disabled:border-line disabled:text-faint disabled:hover:bg-surface',
         )}
       >
-        ‹
+        <Icon name="chevron-left" size={16} />
       </button>
 
       {pageWindow(page, totalPages).map((item, i) =>
@@ -80,7 +81,7 @@ export function Pagination({
           'disabled:cursor-not-allowed disabled:border-line disabled:text-faint disabled:hover:bg-surface',
         )}
       >
-        ›
+        <Icon name="chevron-right" size={16} />
       </button>
     </nav>
   );

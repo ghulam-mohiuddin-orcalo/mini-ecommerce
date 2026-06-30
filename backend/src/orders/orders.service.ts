@@ -24,6 +24,8 @@ interface PreparedItem {
   productName: string;
   productImageUrl: string;
   productCategory: string;
+  variantId: string | null;
+  variantLabel: string | null;
   unitPriceCents: number;
   quantity: number;
 }
@@ -76,7 +78,8 @@ export class OrdersService {
       let totalCents = 0;
 
       for (const item of cart.items) {
-        // Re-read from the DB — never trust the cart's implied price/availability.
+        // Re-read from the DB — never trust the cart's implied price/availability. The parent
+        // product is always the source of the name/image/category snapshot, even for variants.
         const product = await tx.product.findUnique({ where: { id: item.productId } });
         if (!product || !product.isActive) {
           throw new ConflictException(
@@ -84,9 +87,46 @@ export class OrdersService {
           );
         }
 
-        // Atomic, conditional decrement: only succeeds if enough stock is still available and
-        // the product is active. This is the authoritative guard against overselling, even
-        // under concurrent checkouts (row-level update serializes the WHERE + decrement).
+        if (item.variantId) {
+          // Variant line: price and stock are authoritative on the VARIANT row, so the atomic
+          // conditional decrement targets ProductVariant. Same oversell guarantee as below —
+          // the row-level update serializes the WHERE + decrement under concurrent checkouts.
+          const variant = await tx.productVariant.findUnique({ where: { id: item.variantId } });
+          if (!variant || !variant.isActive || variant.productId !== product.id) {
+            throw new ConflictException(
+              `"${product.name}" is no longer available in the selected option`,
+            );
+          }
+
+          const decremented = await tx.productVariant.updateMany({
+            where: { id: variant.id, isActive: true, stock: { gte: item.quantity } },
+            data: { stock: { decrement: item.quantity } },
+          });
+          if (decremented.count === 0) {
+            throw new ConflictException(
+              `Not enough stock for "${product.name}" (${variant.label}) (only ${variant.stock} left)`,
+            );
+          }
+
+          const unitPriceCents = variant.priceCents; // current variant price, snapshotted
+          totalCents += unitPriceCents * item.quantity;
+          prepared.push({
+            productId: product.id,
+            productName: product.name,
+            productImageUrl: product.imageUrl,
+            productCategory: product.category,
+            variantId: variant.id,
+            variantLabel: variant.label,
+            unitPriceCents,
+            quantity: item.quantity,
+          });
+          continue;
+        }
+
+        // Variant-less line — unchanged behaviour. Atomic, conditional decrement: only succeeds
+        // if enough stock is still available and the product is active. This is the authoritative
+        // guard against overselling, even under concurrent checkouts (row-level update serializes
+        // the WHERE + decrement).
         const decremented = await tx.product.updateMany({
           where: { id: product.id, isActive: true, stock: { gte: item.quantity } },
           data: { stock: { decrement: item.quantity } },
@@ -104,6 +144,8 @@ export class OrdersService {
           productName: product.name,
           productImageUrl: product.imageUrl,
           productCategory: product.category,
+          variantId: null,
+          variantLabel: null,
           unitPriceCents,
           quantity: item.quantity,
         });

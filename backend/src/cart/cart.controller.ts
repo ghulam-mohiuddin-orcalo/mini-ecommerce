@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiConflictResponse,
@@ -15,6 +16,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -68,12 +70,18 @@ export class CartController {
 
   @Delete('items/:productId')
   @ApiOperation({ summary: 'Remove a line from the cart' })
+  @ApiQuery({
+    name: 'variantId',
+    required: false,
+    description: 'Pins which variant line to remove (omit for variant-less products)',
+  })
   @ApiOkResponse({ type: CartResponseDto })
   removeItem(
     @CurrentUser() user: AuthenticatedUser,
     @Param('productId') productId: string,
+    @Query('variantId') variantId?: string,
   ): Promise<CartResponseDto> {
-    return this.cartService.removeItem(user.id, productId);
+    return this.cartService.removeItem(user.id, productId, variantId);
   }
 
   @Delete()

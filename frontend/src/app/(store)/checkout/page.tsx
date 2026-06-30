@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Icon } from '@/components/ui/Icon';
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { CheckoutForm } from '@/components/store/CheckoutForm';
+import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
 import { getStripe } from '@/lib/stripe';
 import { useMe } from '@/lib/hooks/useAuth';
@@ -126,12 +128,49 @@ export default function CheckoutPage() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="pp-rise mb-7">
+      <div className="pp-rise mb-6">
+        <Breadcrumbs
+          items={[{ label: 'Home', href: '/' }, { label: 'Cart', href: '/cart' }, { label: 'Checkout' }]}
+          className="mb-3"
+        />
         <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink">Checkout</h1>
         <p className="mt-1.5 text-muted">Complete your order — securely, without leaving the site.</p>
       </div>
+      <CheckoutSteps className="pp-rise mb-7" />
       {children}
     </div>
+  );
+}
+
+/**
+ * Visual progress indicator for the checkout flow. The underlying submission is still a single
+ * page (Stripe confirm + poll) — these are presentational anchors, not separate routed steps.
+ */
+function CheckoutSteps({ className }: { className?: string }) {
+  const steps = [
+    { n: 1, label: 'Shipping', icon: 'package' as const },
+    { n: 2, label: 'Payment', icon: 'wallet' as const },
+    { n: 3, label: 'Review', icon: 'check-circle' as const },
+  ];
+  return (
+    <ol className={cn('flex items-center gap-2 sm:gap-3', className)} aria-label="Checkout progress">
+      {steps.map((step, i) => (
+        <li key={step.n} className="flex flex-1 items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden="true"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-200 dark:text-brand-300"
+            >
+              <Icon name={step.icon} size={16} />
+            </span>
+            <span className="text-sm font-semibold tracking-tight text-ink">{step.label}</span>
+          </div>
+          {i < steps.length - 1 && (
+            <span aria-hidden="true" className="h-px flex-1 bg-line" />
+          )}
+        </li>
+      ))}
+    </ol>
   );
 }
 

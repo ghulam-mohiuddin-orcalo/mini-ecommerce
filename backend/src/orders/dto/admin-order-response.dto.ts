@@ -44,6 +44,8 @@ export function toAdminOrderResponse(order: OrderWithItemsAndUser): AdminOrderRe
       productId: it.productId,
       productName: it.productName,
       productImageUrl: it.productImageUrl,
+      variantId: it.variantId,
+      variantLabel: it.variantLabel,
       unitPriceCents: it.unitPriceCents,
       quantity: it.quantity,
       lineTotalCents: it.unitPriceCents * it.quantity,

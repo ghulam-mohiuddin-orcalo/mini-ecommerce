@@ -6,6 +6,8 @@ export interface OrderItem {
   productId: string;
   productName: string;
   productImageUrl: string;
+  variantId: string | null;
+  variantLabel: string | null;
   unitPriceCents: number;
   quantity: number;
   lineTotalCents: number;
@@ -30,6 +32,8 @@ export interface User {
 
 export interface CartLine {
   productId: string;
+  variantId: string | null;
+  variantLabel: string | null;
   name: string;
   imageUrl: string;
   category: string;
@@ -47,13 +51,35 @@ export interface Cart {
   itemCount: number;
 }
 
+export interface AdminProductImage {
+  id: string;
+  url: string;
+  alt: string | null;
+  position: number;
+}
+
+export interface AdminProductVariant {
+  id: string;
+  label: string;
+  color: string | null;
+  size: string | null;
+  priceCents: number;
+  stock: number;
+  sku: string;
+  position: number;
+  isActive: boolean;
+}
+
 export interface AdminProduct {
   id: string;
   sku: string;
   name: string;
   description: string;
   priceCents: number;
+  compareAtPriceCents: number | null;
   imageUrl: string;
+  images: AdminProductImage[];
+  variants: AdminProductVariant[];
   category: string;
   stock: number;
   isActive: boolean;
@@ -88,15 +114,73 @@ export interface Paginated2<T> {
   meta: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
+export type ProductBadge = 'NEW' | 'SALE' | 'BESTSELLER' | 'TRENDING';
+
+export interface ProductImage {
+  url: string;
+  alt: string | null;
+}
+
+export interface ProductVariant {
+  id: string;
+  label: string;
+  color: string | null;
+  size: string | null;
+  priceCents: number;
+  stock: number;
+  sku: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   description: string;
   priceCents: number;
+  compareAtPriceCents: number | null;
+  imageUrl: string;
+  images: ProductImage[];
+  variants: ProductVariant[];
+  category: string;
+  stock: number;
+  ratingAvg: number;
+  ratingCount: number;
+  badges: ProductBadge[];
+  createdAt: string;
+}
+
+export interface Review {
+  id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  userName: string;
+  createdAt: string;
+}
+
+export interface FeaturedReview extends Review {
+  product: { id: string; name: string; imageUrl: string };
+}
+
+/** Lean product projection returned inside a wishlist entry. */
+export interface WishlistProduct {
+  id: string;
+  name: string;
+  priceCents: number;
+  compareAtPriceCents: number | null;
   imageUrl: string;
   category: string;
   stock: number;
+}
+
+export interface WishlistItem {
+  id: string;
   createdAt: string;
+  product: WishlistProduct;
+}
+
+export interface Wishlist {
+  items: WishlistItem[];
+  itemCount: number;
 }
 
 export interface PaginationMeta {

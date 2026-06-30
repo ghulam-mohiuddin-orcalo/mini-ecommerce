@@ -203,10 +203,104 @@ html[data-theme='dark'] .pp-skeleton {
   background-size: 800px 100%;
 }
 
+/* Overlay primitives — backdrop fade, dialog pop, drawer slides, toast entrance. */
+@keyframes pp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pp-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pp-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pp-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Brand/announcement marquee — continuous horizontal drift. */
+@keyframes pp-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.pp-fade-in {
+  animation: pp-fade-in 0.2s ease both;
+}
+
+.pp-pop-in {
+  animation: pp-pop-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pp-slide-in-right {
+  animation: pp-slide-in-right 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pp-slide-in-left {
+  animation: pp-slide-in-left 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pp-toast-in {
+  animation: pp-toast-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.pp-marquee-track {
+  animation: pp-marquee linear infinite;
+}
+
+.pp-marquee-pause:hover .pp-marquee-track {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pp-rise,
   .pp-rise-delay,
-  .pp-skeleton {
+  .pp-skeleton,
+  .pp-fade-in,
+  .pp-pop-in,
+  .pp-slide-in-right,
+  .pp-slide-in-left,
+  .pp-toast-in,
+  .pp-marquee-track {
     animation: none;
   }
 }

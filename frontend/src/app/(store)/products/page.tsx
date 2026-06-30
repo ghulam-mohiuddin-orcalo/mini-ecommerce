@@ -41,14 +41,21 @@ function CatalogClient() {
   const { data, isLoading, isError, isFetching, refetch } = useProducts(query);
   const { data: categories = [] } = useCategories();
 
+  // Rating is a CLIENT-SIDE filter (the API has no rating param). It lives in the URL so the
+  // filtered view is shareable; we apply it to the returned page below.
+  const minRatingRaw = searchParams.get('minRating');
+  const minRating =
+    minRatingRaw && Number.isFinite(Number(minRatingRaw)) ? Number(minRatingRaw) : undefined;
+
   const writeParams = useCallback(
-    (next: ProductQuery) => {
+    (next: ProductQuery & { minRating?: number }) => {
       const usp = new URLSearchParams();
       if (next.search) usp.set('search', next.search);
       if (next.category) usp.set('category', next.category);
       if (next.minPrice !== undefined) usp.set('minPrice', String(next.minPrice));
       if (next.maxPrice !== undefined) usp.set('maxPrice', String(next.maxPrice));
       if (next.sort && next.sort !== 'newest') usp.set('sort', next.sort);
+      if (next.minRating !== undefined) usp.set('minRating', String(next.minRating));
       if (next.page && next.page > 1) usp.set('page', String(next.page));
       const qs = usp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -58,19 +65,32 @@ function CatalogClient() {
 
   // Filter changes reset to page 1; pagination keeps the rest of the query.
   const updateFilters = useCallback(
-    (partial: Partial<ProductQuery>) => writeParams({ ...query, ...partial, page: 1 }),
+    (partial: Partial<ProductQuery>) => writeParams({ ...query, minRating, ...partial, page: 1 }),
+    [query, minRating, writeParams],
+  );
+  const setRating = useCallback(
+    (rating: number | undefined) => writeParams({ ...query, minRating: rating, page: 1 }),
     [query, writeParams],
   );
   const setPage = useCallback(
-    (page: number) => writeParams({ ...query, page }),
-    [query, writeParams],
+    (page: number) => writeParams({ ...query, minRating, page }),
+    [query, minRating, writeParams],
   );
   const clearAll = useCallback(() => router.replace(pathname, { scroll: false }), [pathname, router]);
 
   const hasActiveFilters = Boolean(
-    query.search || query.category || query.minPrice !== undefined || query.maxPrice !== undefined,
+    query.search ||
+      query.category ||
+      query.minPrice !== undefined ||
+      query.maxPrice !== undefined ||
+      minRating !== undefined,
   );
   const meta = data?.meta;
+
+  // Apply the client-side rating filter to the server-returned page.
+  const visibleProducts = (data?.data ?? []).filter(
+    (p) => minRating === undefined || p.ratingAvg >= minRating,
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -91,7 +111,9 @@ function CatalogClient() {
           <CatalogFilters
             value={query}
             categories={categories}
+            minRating={minRating}
             onChange={updateFilters}
+            onRatingChange={setRating}
             onClear={clearAll}
             hasActiveFilters={hasActiveFilters}
           />
@@ -102,10 +124,14 @@ function CatalogClient() {
             <ProductGridSkeleton count={6} />
           ) : isError ? (
             <ErrorState onRetry={() => void refetch()} />
-          ) : data && data.data.length === 0 ? (
+          ) : visibleProducts.length === 0 ? (
             <EmptyState
               title="No products match your filters"
-              description="Try widening your price range or clearing the search."
+              description={
+                minRating !== undefined
+                  ? 'No products on this page meet the rating filter. Try lowering it or clearing filters.'
+                  : 'Try widening your price range or clearing the search.'
+              }
               action={
                 hasActiveFilters ? (
                   <Button variant="secondary" onClick={clearAll}>
@@ -116,7 +142,7 @@ function CatalogClient() {
             />
           ) : (
             <div className="flex flex-col gap-8">
-              <ProductGrid products={data?.data ?? []} />
+              <ProductGrid products={visibleProducts} />
               {meta && (
                 <Pagination page={meta.page} totalPages={meta.totalPages} onPageChange={setPage} />
               )}
