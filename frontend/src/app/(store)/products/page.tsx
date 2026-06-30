@@ -76,7 +76,7 @@ function CatalogClient() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-ink sm:text-[34px]">Catalog</h1>
+          <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink sm:text-[38px]">Catalog</h1>
           <p className="mt-1.5 text-sm text-muted">
             {meta
               ? `${meta.total} product${meta.total === 1 ? '' : 's'} · curated for everyday use`
@@ -144,7 +144,7 @@ function SortToggle({
   return (
     <div className="flex items-center gap-2.5">
       <span className="text-sm font-semibold text-muted">Sort</span>
-      <div className="inline-flex gap-0.5 rounded-lg bg-[#eae4d9] p-0.5" role="group" aria-label="Sort products">
+      <div className="inline-flex gap-0.5 rounded-lg bg-paper-2 p-0.5" role="group" aria-label="Sort products">
         {SORT_TABS.map((tab) => {
           const active = value === tab.value;
           return (
@@ -154,7 +154,7 @@ function SortToggle({
               aria-pressed={active}
               className={cn(
                 'rounded-[8px] px-3 py-1.5 text-[13px] font-semibold transition-colors',
-                active ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.06)]' : 'text-ink-soft hover:text-ink',
+                active ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-soft hover:text-ink',
               )}
             >
               {tab.label}

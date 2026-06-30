@@ -43,7 +43,7 @@ export default function CartPage() {
 
   return (
     <PageShell>
-      <h1 className="mb-6 text-3xl font-extrabold tracking-tight text-ink">Your cart</h1>
+      <h1 className="mb-6 font-serif text-[32px] font-medium tracking-tight text-ink">Your cart</h1>
 
       {isLoading ? (
         <Skeleton className="h-40 w-full" />
@@ -126,13 +126,13 @@ export default function CartPage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted">Shipping</dt>
-                <dd className="font-semibold text-brand-500">Free</dd>
+                <dd className="font-semibold text-brand-500 dark:text-brand-300">Free</dd>
               </div>
             </dl>
             <div className="my-4 h-px bg-line" />
             <div className="flex items-baseline justify-between">
               <span className="text-base font-extrabold text-ink">Total</span>
-              <span className="text-[22px] font-extrabold tracking-tight text-brand-700">
+              <span className="text-[22px] font-extrabold tracking-tight text-brand-700 dark:text-brand-300">
                 {formatPrice(cart.totalCents)}
               </span>
             </div>

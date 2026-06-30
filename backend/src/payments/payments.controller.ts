@@ -25,6 +25,7 @@ import { AuthenticatedUser } from '../common/types/authenticated-user';
 import { PaymentsService } from './payments.service';
 import { CheckoutSessionResponseDto } from './dto/checkout-session-response.dto';
 import { SessionStatusResponseDto } from './dto/session-status-response.dto';
+import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 
 @ApiTags('payments')
 @Controller('payments')
@@ -49,6 +50,26 @@ export class PaymentsController {
     @Param('id') id: string,
   ): Promise<SessionStatusResponseDto> {
     return this.payments.getSessionStatus(user.id, id);
+  }
+
+  @Post('payment-intent')
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Create a Stripe PaymentIntent from the current cart (embedded checkout)' })
+  @ApiCreatedResponse({ type: PaymentIntentResponseDto })
+  @ApiBadRequestResponse({ description: 'Cart is empty' })
+  createPaymentIntent(@CurrentUser() user: AuthenticatedUser): Promise<PaymentIntentResponseDto> {
+    return this.payments.createPaymentIntent(user.id);
+  }
+
+  @Get('payment-intent/:id')
+  @ApiCookieAuth()
+  @ApiOperation({ summary: 'Reconcile a PaymentIntent and return its order once fulfilled' })
+  @ApiOkResponse({ type: SessionStatusResponseDto })
+  getPaymentIntentStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<SessionStatusResponseDto> {
+    return this.payments.getPaymentIntentStatus(user.id, id);
   }
 
   /**

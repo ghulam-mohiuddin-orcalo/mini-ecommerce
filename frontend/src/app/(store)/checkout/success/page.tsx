@@ -7,21 +7,29 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
-import { useSessionStatus } from '@/lib/hooks/usePayments';
+import { usePaymentIntentStatus, useSessionStatus } from '@/lib/hooks/usePayments';
 
 /**
- * Stripe Checkout success return page. Stripe redirects here with ?session_id=… after payment.
- * We poll the backend until the order is fulfilled (webhook or direct reconciliation), then
- * forward to the existing order confirmation page. The order is only ever created after Stripe
- * confirms payment, so this page never creates one itself — it just waits and redirects.
+ * Payment success return page. Reached two ways:
+ *  - embedded Payment Element after a redirect-based step (e.g. 3-D Secure): ?payment_intent=pi_…
+ *  - legacy hosted Checkout: ?session_id=cs_…
+ * Either way we poll the backend until the order is fulfilled (webhook or direct reconciliation),
+ * then forward to the order confirmation page. The order is only ever created after Stripe confirms
+ * payment, so this page never creates one itself — it just waits and redirects.
  */
 function CheckoutSuccess() {
   const router = useRouter();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
+  const paymentIntentId = searchParams.get('payment_intent');
 
-  const { data, isError, refetch } = useSessionStatus(sessionId);
+  // Exactly one id is present per visit; the other hook stays disabled (null id).
+  const sessionStatus = useSessionStatus(sessionId);
+  const intentStatus = usePaymentIntentStatus(paymentIntentId);
+  const active = paymentIntentId ? intentStatus : sessionStatus;
+  const { data, isError, refetch } = active;
+  const hasReference = Boolean(sessionId || paymentIntentId);
 
   useEffect(() => {
     if (data?.status === 'complete' && data.orderId) {
@@ -34,11 +42,11 @@ function CheckoutSuccess() {
     }
   }, [data, qc, router]);
 
-  if (!sessionId) {
+  if (!hasReference) {
     return (
       <EmptyState
-        title="Missing checkout session"
-        description="This page should be reached from Stripe Checkout."
+        title="Missing payment reference"
+        description="This page should be reached from the checkout payment step."
         action={<Link href="/cart"><Button>Back to cart</Button></Link>}
       />
     );
@@ -51,8 +59,8 @@ function CheckoutSuccess() {
   if (data?.status === 'expired') {
     return (
       <EmptyState
-        title="This checkout session expired"
-        description="No payment was taken. You can start over from your cart."
+        title="This payment didn’t complete"
+        description="No order was placed. You can start over from your cart."
         action={<Link href="/cart"><Button>Back to cart</Button></Link>}
       />
     );

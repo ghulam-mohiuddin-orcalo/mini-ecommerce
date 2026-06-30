@@ -100,7 +100,7 @@ function ProfileContent({ user }: { user: User }) {
     <div className="flex flex-col gap-8">
       {/* Title + welcome */}
       <div className="pp-rise">
-        <h1 className="text-3xl font-extrabold tracking-tight text-ink">My Profile</h1>
+        <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink">My Profile</h1>
         <p className="mt-1.5 text-muted">
           Welcome back, {firstName} — here’s your account at a glance.
         </p>
@@ -108,11 +108,7 @@ function ProfileContent({ user }: { user: User }) {
 
       {/* Identity hero */}
       <section className="pp-rise relative overflow-hidden rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)] sm:p-8">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(120% 90% at 100% 0%,rgba(199,154,82,.10),transparent 55%)' }}
-        />
+        <div aria-hidden="true" className="pp-glow-soft pointer-events-none absolute inset-0" />
         <div className="relative flex flex-col items-start gap-5 sm:flex-row sm:items-center">
           <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-brand-600 text-2xl font-extrabold text-white shadow-[var(--shadow-btn)]">
             {initialsOf(user)}
@@ -151,11 +147,11 @@ function ProfileContent({ user }: { user: User }) {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-            <StatCard icon="bag" chip="bg-brand-100 text-brand-700" value={String(stats.total)} label="Total orders" />
-            <StatCard icon="check-circle" chip="bg-[#e3efe7] text-[var(--color-success)]" value={String(stats.completed)} label="Completed orders" />
+            <StatCard icon="bag" chip="bg-brand-100 text-brand-700 dark:text-brand-300" value={String(stats.total)} label="Total orders" />
+            <StatCard icon="check-circle" chip="bg-brand-50 text-[var(--color-success)]" value={String(stats.completed)} label="Completed orders" />
             <StatCard icon="clock" chip="bg-[var(--color-warning-soft)] text-[var(--color-warning-ink)]" value={String(stats.pending)} label="Pending orders" />
             <StatCard icon="wallet" chip="bg-brand-600 text-white" value={formatPrice(stats.spent)} label="Total spent · excl. cancelled" />
-            <StatCard icon="tag" chip="bg-[#f6ecd6] text-[var(--color-warning-ink)]" value={favoriteCategory ?? '—'} label="Favorite category" />
+            <StatCard icon="tag" chip="bg-[var(--color-warning-soft)] text-[var(--color-warning-ink)]" value={favoriteCategory ?? '—'} label="Favorite category" />
             <StatCard icon="cart" chip="bg-paper-2 text-ink-soft" value={String(cart?.itemCount ?? 0)} label="Items in cart" />
           </div>
         )}
@@ -190,7 +186,7 @@ function ProfileContent({ user }: { user: User }) {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-extrabold tracking-tight text-ink">Recent orders</h2>
             {recentOrders.length > 0 && (
-              <Link href="/orders" className="text-sm font-semibold text-brand-600 hover:underline">
+              <Link href="/orders" className="text-sm font-semibold text-brand-600 dark:text-brand-300 hover:underline">
                 View all
               </Link>
             )}
@@ -256,7 +252,7 @@ function ProfileContent({ user }: { user: User }) {
                 href={`/products?category=${encodeURIComponent(c)}`}
                 className="group flex flex-col items-start gap-3 rounded-xl border border-line bg-surface p-4 transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lift)]"
               >
-                <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-100">
+                <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:text-brand-300 transition-colors group-hover:bg-brand-100">
                   <Icon name={categoryIcon(c)} size={20} />
                 </span>
                 <span className="font-bold tracking-tight text-ink">{c}</span>

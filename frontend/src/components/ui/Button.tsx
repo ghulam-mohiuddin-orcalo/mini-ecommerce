@@ -8,8 +8,8 @@ const variants: Record<Variant, string> = {
   primary:
     'bg-brand-600 text-white shadow-[var(--shadow-btn)] hover:bg-brand-700 hover:-translate-y-px focus-visible:ring-brand-600',
   secondary:
-    'bg-surface text-ink border border-line hover:bg-paper-2 hover:border-[#c2baab] focus-visible:ring-brand-500',
-  ghost: 'bg-transparent text-brand-600 hover:bg-brand-50 focus-visible:ring-brand-500',
+    'bg-surface text-ink border border-line hover:bg-paper-2 hover:border-faint focus-visible:ring-brand-500',
+  ghost: 'bg-transparent text-brand-600 dark:text-brand-300 hover:bg-brand-50 focus-visible:ring-brand-500',
   danger: 'bg-danger text-white hover:opacity-90 focus-visible:ring-danger',
 };
 

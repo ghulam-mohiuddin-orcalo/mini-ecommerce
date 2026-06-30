@@ -27,14 +27,21 @@ const STATUS_LABEL: Record<OrderStatus, string> = {
   DELIVERED: 'Deliv',
   CANCELLED: 'Canc',
 };
+// Token references (var(--…)) so chart fills flip with the theme — SVG fill/stroke resolve
+// these against live computed styles, no re-render needed.
 const STATUS_FILL: Record<OrderStatus, string> = {
-  PENDING: '#c2871a',
-  PROCESSING: '#3c775e',
-  SHIPPED: '#2c5d4a',
-  DELIVERED: '#244b3c',
-  CANCELLED: '#d8c7bd',
+  PENDING: 'var(--color-warning)',
+  PROCESSING: 'var(--color-brand-500)',
+  SHIPPED: 'var(--color-brand-600)',
+  DELIVERED: 'var(--color-brand-700)',
+  CANCELLED: 'var(--color-chart-muted)',
 };
-const RANK_FILL = ['#244b3c', '#3c775e', '#87b4a0', '#c8c0b2'];
+const RANK_FILL = [
+  'var(--color-brand-700)',
+  'var(--color-brand-500)',
+  'var(--color-brand-300)',
+  'var(--color-chart-muted)',
+];
 
 export default function AdminDashboard() {
   const { data: user } = useMe();
@@ -61,7 +68,7 @@ export default function AdminDashboard() {
           label="Total sales"
           value={formatPrice(data.totalSalesCents)}
           hint="Excludes cancelled"
-          chip="bg-brand-100 text-brand-700"
+          chip="bg-brand-100 text-brand-700 dark:text-brand-300"
           icon={
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -83,7 +90,7 @@ export default function AdminDashboard() {
           label="Pending"
           value={String(data.ordersByStatus.PENDING)}
           hint="Awaiting processing"
-          chip="bg-[#f4eedd] text-[var(--color-warning-ink)]"
+          chip="bg-[var(--color-warning-soft)] text-[var(--color-warning-ink)]"
           icon={
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="9" />
@@ -99,15 +106,17 @@ export default function AdminDashboard() {
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e7e2d9" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#8a847b' }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#8a847b' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: 'var(--color-muted)' }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  cursor={{ fill: '#f0f5f2' }}
+                  cursor={{ fill: 'var(--color-brand-50)' }}
                   contentStyle={{
                     borderRadius: 12,
-                    border: '1px solid #e7e2d9',
-                    boxShadow: '0 10px 30px -18px rgba(27,26,24,.28)',
+                    background: 'var(--color-surface)',
+                    color: 'var(--color-ink)',
+                    border: '1px solid var(--color-line)',
+                    boxShadow: 'var(--shadow-summary)',
                     fontSize: 13,
                   }}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.status ?? ''}

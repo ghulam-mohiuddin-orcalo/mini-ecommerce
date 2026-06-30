@@ -32,22 +32,16 @@ export default function LoginPage() {
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(160deg,rgba(36,75,60,.9),rgba(44,93,74,.7))' }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'radial-gradient(120% 80% at 90% 0%,rgba(199,154,82,.28),transparent 55%)' }}
-          />
+          <div aria-hidden="true" className="pp-veil absolute inset-0" />
+          <div aria-hidden="true" className="pp-glow absolute inset-0" />
           <div className="relative flex items-center gap-2.5">
             <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-white/15 text-sm font-extrabold text-white">
               P
             </span>
-            <span className="font-bold text-white">Pine &amp; Parcel</span>
+            <span className="font-serif text-[17px] font-semibold text-white">Pine &amp; Parcel</span>
           </div>
           <div className="relative">
-            <h2 className="text-[22px] font-extrabold leading-tight tracking-tight text-white">
+            <h2 className="font-serif text-[26px] font-medium leading-tight tracking-tight text-white">
               Welcome back.
             </h2>
             <p className="mt-2 text-[13px] leading-relaxed text-white/80">
@@ -88,7 +82,7 @@ export default function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-muted">
             No account?{' '}
-            <Link href="/signup" className="font-bold text-brand-600 hover:underline">Create one</Link>
+            <Link href="/signup" className="font-bold text-brand-600 dark:text-brand-300 hover:underline">Create one</Link>
           </p>
         </form>
       </div>

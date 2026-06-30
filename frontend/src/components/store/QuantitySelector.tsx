@@ -34,7 +34,7 @@ export function QuantitySelector({
   return (
     <div
       className={cn(
-        'inline-flex items-center overflow-hidden border border-[#d9d3c8] bg-surface',
+        'inline-flex items-center overflow-hidden border border-line bg-surface',
         s.box,
         className,
       )}

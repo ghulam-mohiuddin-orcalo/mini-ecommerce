@@ -46,6 +46,17 @@ export class StripeService {
     return this.client().checkout.sessions.retrieve(id);
   }
 
+  /** Create a PaymentIntent for the embedded (in-app) Payment Element flow. */
+  createPaymentIntent(
+    params: Stripe.PaymentIntentCreateParams,
+  ): Promise<Stripe.PaymentIntent> {
+    return this.client().paymentIntents.create(params);
+  }
+
+  retrievePaymentIntent(id: string): Promise<Stripe.PaymentIntent> {
+    return this.client().paymentIntents.retrieve(id);
+  }
+
   /**
    * Verify a webhook payload against the signature header using STRIPE_WEBHOOK_SECRET.
    * Throws `Stripe.errors.StripeSignatureVerificationError` if the signature is invalid —

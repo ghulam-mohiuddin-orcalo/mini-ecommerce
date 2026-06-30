@@ -25,11 +25,11 @@ export default function HomePage() {
       {/* Hero */}
       <section className="grid grid-cols-1 items-center gap-9 py-14 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="pp-rise">
-          <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-500">
-            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-500 dark:text-brand-300">
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-brand-500 dark:bg-brand-300" />
             Thoughtfully made goods
           </span>
-          <h1 className="mt-5 text-4xl font-extrabold leading-[1.04] tracking-tight text-ink sm:text-5xl">
+          <h1 className="mt-5 font-serif text-[42px] font-medium leading-[1.05] tracking-tight text-ink sm:text-[56px]">
             Everyday essentials, carefully chosen.
           </h1>
           <p className="mt-5 max-w-md text-[17px] leading-relaxed text-ink-soft">
@@ -75,18 +75,12 @@ export default function HomePage() {
             alt=""
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(150deg,rgba(36,75,60,.88),rgba(44,93,74,.6) 45%,rgba(60,119,94,.42))' }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{ background: 'radial-gradient(120% 80% at 80% 10%,rgba(199,154,82,.32),transparent 55%)' }}
-          />
+          <div aria-hidden="true" className="pp-veil absolute inset-0" />
+          <div aria-hidden="true" className="pp-glow absolute inset-0" />
           <span className="absolute left-6 top-6 text-[13px] font-bold uppercase tracking-[0.1em] text-white/70">
             Catalog ’25
           </span>
-          <span className="absolute inset-x-6 bottom-[88px] text-[34px] font-extrabold leading-[1.1] tracking-tight text-white">
+          <span className="absolute inset-x-6 bottom-[88px] font-serif text-[36px] font-medium leading-[1.1] tracking-tight text-white">
             Quiet quality,
             <br />
             built to last.
@@ -102,13 +96,13 @@ export default function HomePage() {
         <div className="mb-5 flex items-end justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.07em] text-muted">Just landed</p>
-            <h2 className="mt-1.5 text-2xl font-extrabold tracking-tight text-ink sm:text-[28px]">
+            <h2 className="mt-1.5 font-serif text-[26px] font-medium tracking-tight text-ink sm:text-3xl">
               New arrivals
             </h2>
           </div>
           <Link
             href="/products"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:underline"
           >
             View all
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

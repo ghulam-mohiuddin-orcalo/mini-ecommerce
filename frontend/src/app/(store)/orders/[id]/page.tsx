@@ -61,7 +61,7 @@ function OrderDetail() {
             </svg>
           </span>
           <div>
-            <p className="font-bold text-brand-700">Order confirmed — thank you!</p>
+            <p className="font-bold text-brand-700 dark:text-brand-300">Order confirmed — thank you!</p>
             <p className="text-sm text-muted">Your payment was confirmed by Stripe. A summary is below.</p>
           </div>
         </div>
@@ -69,7 +69,7 @@ function OrderDetail() {
 
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-ink">
+          <h1 className="font-serif text-[28px] font-medium tracking-tight text-ink">
             Order #{order.id.slice(-8)}
           </h1>
           <p className="mt-1 text-sm text-muted">Placed {formatDate(order.createdAt)}</p>
@@ -99,14 +99,14 @@ function OrderDetail() {
 
       <div className="flex items-center justify-between rounded-xl border border-line bg-surface p-[18px] shadow-[var(--shadow-card)]">
         <span className="text-base font-extrabold text-ink">Total</span>
-        <span className="text-[22px] font-extrabold tracking-tight text-brand-700">
+        <span className="text-[22px] font-extrabold tracking-tight text-brand-700 dark:text-brand-300">
           {formatPrice(order.totalCents)}
         </span>
       </div>
 
       <Link
         href="/orders"
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 dark:text-brand-300 hover:underline"
       >
         ← All orders
       </Link>
