@@ -355,6 +355,77 @@ build progresses (not at the end).
   neither). The publishable key (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`) is now actually used in the
   browser; if it's absent the page shows a "payments not configured" state rather than crashing.
 
+### Storefront redesign — gallery, variants, reviews, wishlist, sale/badges, CMS, addresses, password reset
+A breadth pass that layered merchandising depth and content management onto the existing core
+**without disturbing the integrity invariants**. Three additive migrations
+(`add_product_gallery_variants_sale_price`, `add_reviews_addresses_wishlist`,
+`add_cms_and_password_reset`) and an expanded seed back it. Key decisions and trade-offs:
+
+- **Variants are additive and optional — the integrity core is untouched.** A product can have
+  **zero** variants, in which case it behaves exactly as before (base `priceCents`/`stock`, the
+  same atomic conditional decrement, the same order-item snapshot). `ProductVariant` adds
+  per-variant `priceCents`/`stock`/`sku`; `CartItem`/`OrderItem` gain a nullable `variantId`, and
+  `OrderItem` snapshots a `variantLabel` alongside the existing name/price snapshot so historical
+  orders survive variant edits/deletes. The cart's uniqueness key widened from `(cartId,
+  productId)` to `(cartId, productId, variantId)` so the same product in two variants are distinct
+  lines. **Deliberate scope:** zero-variant products are the unchanged, well-tested path; variants
+  ride the *same* transactional decrement and snapshot machinery rather than a parallel one, so the
+  oversell guard and snapshot immutability that M5 proved still hold. `OrderItem → ProductVariant`
+  is `Restrict` (mirrors the product backstop), keeping the soft-delete contract.
+- **Reviews require a real verified purchase.** `POST /products/:id/reviews` only succeeds if the
+  author has a **paid** order (`paidAt` set) containing that product — checked against
+  authoritative order data, never trusted from the client. One review per `(productId, userId)`
+  (DB unique → P2002 → **409**); a DB `CHECK (rating BETWEEN 1 AND 5)` backs the DTO. Listing joins
+  the author's **name only** (never email/id), so reviews can't leak account identifiers. Deletion
+  is author-or-admin (403 otherwise, 404 if missing) — ownership-checked, no IDOR. `ratingAvg`/
+  `ratingCount` on the product response are **derived** from real rows, not stored.
+- **Badges are derived from real data, never stored flags.** `deriveBadges` computes NEW (created
+  within 30 days), SALE (`compareAtPriceCents > priceCents`), and BESTSELLER/TRENDING (units sold
+  across non-cancelled orders, thresholds 20 / 5) at response time. Same explainable, deterministic
+  spirit as recommendations — no opaque scoring, nothing to keep in sync, no migration to "unset" a
+  stale badge. `compareAtPriceCents` is the strike-through "was" price (a DB CHECK enforces
+  `NULL OR > 0`); the SALE badge and the strike-through both fall out of it.
+- **Wishlist is server-side, per-user — not localStorage.** A `WishlistItem` table keyed unique on
+  `(userId, productId)`; every route is scoped to the JWT user id (no client-supplied userId, no
+  IDOR), add/remove/toggle are idempotent. Chosen over localStorage so it **syncs across devices**
+  and is a genuine account feature, consistent with the cart's server-authoritative design.
+- **Recently-viewed *is* localStorage — intentionally.** The "recently viewed" rail is **view
+  history**, not a saved list: a privacy-light, device-local convenience that doesn't warrant a
+  table or a write on every page view. It reads ids from `localStorage` and resolves them through
+  the product cache, renders nothing when empty, and degrades silently if storage is unavailable.
+  Clearly distinct from the wishlist — flagged here so the two aren't conflated.
+- **Content is CMS-backed with draft/publish, not hard-coded.** `Article` (+ `ArticleCategory`)
+  for the journal carries an `ArticleStatus` (`DRAFT`/`PUBLISHED`) with a `publishedAt`; **public
+  read endpoints only ever return PUBLISHED**, admin endpoints see drafts too. `FaqCategory`/
+  `FaqItem` (ordered by `position`), `ContentBlock` (keyed by `key`, e.g. `about`/`privacy`), and
+  `ContactMessage` (real intake for both the contact form and the footer newsletter, with a
+  handled/unhandled admin inbox) round it out. Slugs/keys are unique (duplicate → **409**). The
+  About/policy pages and FAQ are now editable through the admin panel rather than redeployed.
+- **Addresses are a saved-address book, scoped + ownership-checked.** `Address` per user with a
+  single-default invariant (creating/▶setting a default unsets the previous; deleting the default
+  promotes the newest remaining). By-id routes 404 for another user's address (no IDOR). **Note:**
+  this is an account convenience — checkout still sends shipping/billing to Stripe and the `Order`
+  still has no address columns (the M-checkout assumption is unchanged); these saved addresses are
+  not yet wired into the order record.
+
+### Password reset — the one intentional stub (delivery only)
+- **The token flow is real; only email *delivery* is stubbed.** This repo ships **no mailer**, so
+  there is exactly one intentional stub in the system: the channel that would email the reset link.
+  Everything security-relevant about the flow is genuine:
+  - `POST /auth/forgot-password` generates a **cryptographically random** token
+    (`randomBytes(32)`), stores only its **sha256 hash** (`PasswordResetToken.tokenHash`) — the raw
+    token never hits the DB — with a **1-hour expiry**, and invalidates any prior unused token for
+    that user. It is **single-use** (`usedAt` stamped on redeem) and returns an identical generic
+    200 whether or not the email exists (**no user enumeration**). Rate-limited like login/signup.
+  - `POST /auth/reset-password` accepts a raw token, re-hashes and looks it up by
+    `{ tokenHash, usedAt: null, expiresAt > now }`, sets the new password, and marks it used — all
+    in one transaction. It does **not** auto-login (client redirects to `/login`).
+- **How the stub is bounded:** the link/token is always **logged server-side**, and the raw token
+  is **echoed in the `/auth/forgot-password` response only when `NODE_ENV !== 'production'`** so the
+  flow is exercisable end-to-end without an inbox. This gate is load-bearing and must stay — tokens
+  must never be echoed in production. Swapping in a real mailer is a one-call change at the point
+  where we currently log; nothing else about the flow changes.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -562,6 +633,20 @@ Nothing is accepted on a green build alone. Verification performed so far:
   - **Frontend tests** added (Vitest + Testing Library): checkout validation, money formatting +
     line-total summation, and checkout-page render states incl. the regression — **15 tests**,
     `npm test` green; `tsc --noEmit` and `next build` clean.
+- **Storefront redesign (gallery / variants / reviews / wishlist / sale-badges / CMS / addresses /
+  password reset):**
+  - Three additive migrations applied cleanly from the existing baseline; the expanded seed is
+    idempotent (re-run leaves identical counts) and now provisions 24 products (two on sale, two
+    variant-bearing), customer reviews, two addresses (one default), a 3-item wishlist, 4 published
+    articles + 1 category, 2 FAQ categories, and 5 content blocks.
+  - **Backend gates green:** `npm run build` (TypeScript compile) clean, `npm test` (unit) and
+    `npm run test:e2e` (Jest + Supertest against the `*test*` DB) both pass.
+  - **Integrity invariants re-checked under the additive features:** zero-variant products still
+    take the unchanged atomic-decrement + snapshot path; variant lines ride the same transaction;
+    the review verified-purchase gate, one-per-product 409, ownership-checked deletion, and the
+    no-enumeration password-reset flow (random token, sha256-at-rest, single-use, 1h expiry, dev
+    echo gated on `NODE_ENV`) all behave as designed.
+  - **Frontend gates green:** `tsc --noEmit` clean and a full `next build` succeeds — **33 routes**.
 
 ## Design workflow
 
@@ -608,24 +693,32 @@ Nothing is accepted on a green build alone. Verification performed so far:
   a schema change for no in-app consumer. Flagged as future work if order addresses become a feature.
 - **Theme is a device preference.** Light/dark/system is stored in `localStorage` and applied
   before paint; it isn't synced to the account (no backend preference store in scope).
-- **A few account affordances are demo-only and labelled as such:** the settings *Change password*
-  form validates client-side but isn't wired to a backend (notice shown), *Delete account* is
-  disabled ("coming soon"), and *Edit profile* shows a demo notice. They're clearly marked rather
-  than presented as working.
+- **Change password and password reset are now real;** the remaining account affordances are
+  demo-only and labelled as such: *Delete account* is disabled ("coming soon") and *Edit profile*
+  shows a demo notice. Password **reset email *delivery*** is the single intentional stub — the
+  token flow itself is real (see "Password reset — the one intentional stub" above). The demo-only
+  actions are clearly marked rather than presented as working.
 
 ## Trade-offs and scope
 
-- **Built fully:** the whole storefront + admin end-to-end (catalog, cart, **embedded Stripe
-  checkout**, orders, auth, profile, settings, recommendations, admin CRUD/orders/analytics), the
+- **Built fully:** the whole storefront + admin end-to-end (catalog with **gallery / variants /
+  reviews / sale-badges**, **wishlist**, cart, **embedded Stripe checkout**, orders, auth +
+  **password reset / change password**, **saved addresses**, profile, settings, recommendations,
+  the **journal / FAQ / content / contact CMS**, admin CRUD/orders/analytics + CMS management), the
   complete data layer (schema, migrations, idempotent seed) with relational + value integrity
   verified, a custom light/dark design system, and backend + frontend test suites.
-- **Deliberately simplified:** images are URLs (not uploads); categories are strings; checkout
-  addresses aren't persisted. Payment is **Stripe Test Mode** via the embedded Payment Element; the
-  legacy hosted-Checkout endpoints and the in-process mock provider are both retained behind the same
-  transactional core (the mock still backs the rollback e2e tests).
+- **Deliberately simplified:** images are URLs (not uploads); categories are strings; **variants
+  are additive/optional** (zero-variant products are the unchanged core path); checkout addresses
+  go to Stripe and saved addresses aren't yet wired into the order record. Payment is **Stripe Test
+  Mode** via the embedded Payment Element; the legacy hosted-Checkout endpoints and the in-process
+  mock provider are both retained behind the same transactional core (the mock still backs the
+  rollback e2e tests).
+- **The one intentional stub:** password-reset **email delivery** (no mailer in repo) — the token
+  flow is real and the raw token is echoed only when `NODE_ENV !== 'production'`.
 - **Known future work:** migrate the Prisma seed config to `prisma.config.ts` (the
   `package.json#prisma` key is deprecated in Prisma 7; harmless on the pinned v6); add a
   `Category` entity if category management is needed; persist a record of refunds/failed
-  fulfilments (today an unfulfillable paid payment is logged for manual refund); wire the demo-only
-  account actions (change password / edit profile / delete account) and persist order addresses if
-  those become real features; file upload; broaden frontend test coverage beyond checkout.
+  fulfilments (today an unfulfillable paid payment is logged for manual refund); wire a real mailer
+  for password-reset delivery; wire the remaining demo-only account actions (edit profile / delete
+  account) and persist order addresses (incl. picking from the saved address book) if those become
+  real features; file upload; broaden frontend test coverage.

@@ -22,16 +22,22 @@ sharing a single API. Built as a timed full-stack assessment.
 ## Features
 
 - **Storefront:** product catalog (search, category + price-range filter, sort by price/newest,
-  pagination), product detail with quantity add-to-cart, persistent per-user cart, **in-app
-  checkout** (embedded Stripe Payment Element with shipping/billing), order history + detail,
-  signup/login, profile, settings, and personalized **product suggestions**.
+  pagination), product detail with an **image gallery**, optional **product variants**
+  (colour/size with per-variant price/stock), **sale pricing** + derived merchandising **badges**
+  (NEW / SALE / BESTSELLER / TRENDING), **verified-purchase reviews** with average ratings, a
+  quantity add-to-cart, a server-side **wishlist**, persistent per-user cart, **in-app checkout**
+  (embedded Stripe Payment Element with shipping/billing), saved **addresses**, order history +
+  detail, signup/login + **password reset**, profile, settings, and personalized **product
+  suggestions**. A **recently-viewed** rail (client-only view history) and a **journal** (CMS blog).
 - **Admin panel** (role-gated): product create/edit/soft-delete, order management with a status
-  state machine (`pending → processing → shipped → delivered`, `cancelled` restocks), and a
-  dashboard (total sales, orders-by-status chart, top sellers) with an accessible data-table
-  fallback for the chart.
+  state machine (`pending → processing → shipped → delivered`, `cancelled` restocks), a dashboard
+  (total sales, orders-by-status chart, top sellers) with an accessible data-table fallback for
+  the chart, and a **CMS** for the journal (articles with draft/publish), FAQ, static content
+  blocks, and the contact-message inbox.
 - **Cross-cutting:** light/dark mode with no flash-of-wrong-theme, loading/empty/error states
   throughout, client + server validation, integer-cents money, and accessible, responsive UI.
-- **Static pages:** About, Contact, FAQ.
+- **Content pages (CMS-backed):** About + policy pages (content blocks), Contact (stores real
+  messages; also powers the footer newsletter signup), and a FAQ grouped by category.
 
 ## Prerequisites
 
@@ -82,8 +88,11 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 | Admin | `admin@shop.test` | `Admin123!` |
 | Customer | `customer@shop.test` | `Customer123!` |
 
-Seed data also includes 14 products across 5 categories (Apparel, Home, Electronics, Books,
-Outdoors), 5 orders spanning every status, and a populated cart for the customer.
+Seed data also includes 24 products across 5 categories (Apparel, Home, Electronics, Books,
+Outdoors) — a couple on sale and a couple variant-bearing — 5 orders spanning every status, a
+populated cart, a few customer reviews, two saved addresses, a 3-item wishlist for the customer,
+and CMS content: 4 published journal articles (one category), 2 FAQ categories, and 5 static
+content blocks (About / Privacy / Terms / Shipping / Returns).
 
 ## Payment (embedded Stripe Payment Element — Test Mode)
 
@@ -188,42 +197,101 @@ for the first-load bug where the page got stuck on a skeleton on client-side nav
 must render on the first render once the PaymentIntent is ready, plus the loading / empty-cart /
 unauthenticated / error states (15 tests).
 
-## API (so far)
+## API
 
-| Method | Route | Access | Purpose |
-|---|---|---|---|
-| GET | `/health` | public | Liveness check |
-| POST | `/auth/signup` | public | Register a customer (sets auth cookie) |
-| POST | `/auth/login` | public | Authenticate (sets auth cookie) |
-| POST | `/auth/logout` | public | Clear the auth cookie |
-| GET | `/auth/me` | authenticated | Current user |
-| GET | `/users` | admin only | List users (sanitized) |
-| GET | `/products` | public | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
-| GET | `/products/categories` | public | Distinct categories |
-| GET | `/products/:id` | public | Single active product (404 if inactive/missing) |
-| GET | `/recommendations` | public (personalized if signed in) | Suggestions: purchase history → cart → top sellers |
-| GET | `/recommendations/related/:productId` | public | Related products in the same category |
-| GET | `/cart` | authenticated | Current user's cart with computed totals |
-| POST | `/cart/items` | authenticated | Add units (merges into existing line) |
-| PATCH | `/cart/items/:productId` | authenticated | Set absolute quantity for a line |
-| DELETE | `/cart/items/:productId` | authenticated | Remove a line |
-| DELETE | `/cart` | authenticated | Clear the cart |
-| POST | `/orders` | authenticated | Mock checkout: create an order from the cart (transactional; retained, exercises rollback tests) |
-| GET | `/orders` | authenticated | Current user's order history |
-| GET | `/orders/:id` | authenticated | One of the user's own orders (404 otherwise) |
-| POST | `/payments/payment-intent` | authenticated | Create a PaymentIntent from the cart (embedded checkout); amount computed server-side |
-| GET | `/payments/payment-intent/:id` | authenticated | Reconcile a PaymentIntent → its order once fulfilled (idempotent) |
-| POST | `/payments/checkout-session` | authenticated | *(Legacy hosted Checkout)* create a Checkout Session from the cart |
-| GET | `/payments/checkout-session/:id` | authenticated | *(Legacy)* reconcile a Checkout Session → its order |
-| POST | `/payments/webhook` | public (signed) | Stripe webhook: `payment_intent.succeeded` / `checkout.session.completed` → fulfil |
-| GET | `/admin/products` | admin only | All products incl. inactive (`search`, `page`, `pageSize`) |
-| POST | `/admin/products` | admin only | Create a product (409 on duplicate SKU) |
-| PATCH | `/admin/products/:id` | admin only | Edit a product (SKU immutable) |
-| PATCH | `/admin/products/:id/deactivate` | admin only | Soft-delete (deactivate) a product |
-| PATCH | `/admin/products/:id/reactivate` | admin only | Reactivate a product |
-| GET | `/admin/orders` | admin only | All orders (`status`, customer `search`, `page`, `pageSize`) |
-| PATCH | `/admin/orders/:id/status` | admin only | Change status (state-machine enforced; cancel restocks) |
-| GET | `/admin/analytics` | admin only | Dashboard: sales, order counts by status, top products, recent orders |
+Swagger UI documents every route at `/api/docs`. The full surface, grouped by access level:
+
+### Public
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness check |
+| POST | `/auth/signup` | Register a customer (sets auth cookie) |
+| POST | `/auth/login` | Authenticate (sets auth cookie) |
+| POST | `/auth/logout` | Clear the auth cookie |
+| POST | `/auth/forgot-password` | Request a reset link; always 200, never reveals if the email exists |
+| POST | `/auth/reset-password` | Reset the password with a valid, unused, unexpired token |
+| GET | `/products` | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
+| GET | `/products/categories` | Distinct categories |
+| GET | `/products/:id` | Single active product incl. gallery/variants/ratings/badges (404 if inactive/missing) |
+| GET | `/products/:productId/reviews` | A product's reviews, newest first (paginated) |
+| GET | `/reviews/featured` | Top-rated recent reviews across the catalog (`limit`) |
+| GET | `/recommendations` | Suggestions: purchase history → cart → top sellers (personalized if signed in) |
+| GET | `/recommendations/related/:productId` | Related products in the same category |
+| GET | `/articles` | List published journal articles (`search`, `category`, `page`, `pageSize`) |
+| GET | `/articles/categories` | Article categories with published articles |
+| GET | `/articles/:slug` | A single published article by slug (404 otherwise) |
+| GET | `/articles/:slug/related` | Related published articles (same category) |
+| GET | `/faq` | FAQ grouped by category |
+| GET | `/content/:key` | A static content block by key (e.g. `about`, `privacy`) |
+| POST | `/contact` | Submit a contact / newsletter message (stored; generic ack) |
+| POST | `/payments/webhook` | Stripe webhook (signed): `payment_intent.succeeded` / `checkout.session.completed` → fulfil |
+
+### Authenticated (customer)
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/auth/me` | Current user |
+| POST | `/auth/change-password` | Change password (requires the current password) |
+| GET | `/cart` | Current user's cart with computed totals |
+| POST | `/cart/items` | Add units (merges into existing line; optional `variantId`) |
+| PATCH | `/cart/items/:productId` | Set absolute quantity for a line |
+| DELETE | `/cart/items/:productId` | Remove a line |
+| DELETE | `/cart` | Clear the cart |
+| POST | `/orders` | Mock checkout: create an order from the cart (transactional; retained, exercises rollback tests) |
+| GET | `/orders` | Current user's order history |
+| GET | `/orders/:id` | One of the user's own orders (404 otherwise) |
+| POST | `/products/:productId/reviews` | Review a product (verified-purchase gated; one per product) |
+| DELETE | `/reviews/:id` | Delete a review (author or admin only) |
+| GET | `/wishlist` | Current user's wishlist (newest first) |
+| POST | `/wishlist/items` | Add a product to the wishlist (idempotent) |
+| DELETE | `/wishlist/items/:productId` | Remove a product from the wishlist (idempotent) |
+| POST | `/wishlist/toggle` | Toggle a product on the wishlist |
+| GET | `/addresses` | List the user's addresses (default first) |
+| POST | `/addresses` | Create an address (first one / `isDefault` becomes default) |
+| PATCH | `/addresses/:id` | Update an owned address |
+| POST | `/addresses/:id/default` | Make an owned address the default |
+| DELETE | `/addresses/:id` | Delete an owned address |
+| POST | `/payments/payment-intent` | Create a PaymentIntent from the cart (embedded checkout); amount computed server-side |
+| GET | `/payments/payment-intent/:id` | Reconcile a PaymentIntent → its order once fulfilled (idempotent) |
+| POST | `/payments/checkout-session` | *(Legacy hosted Checkout)* create a Checkout Session from the cart |
+| GET | `/payments/checkout-session/:id` | *(Legacy)* reconcile a Checkout Session → its order |
+
+### Admin only
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/users` | List users (sanitized) |
+| GET | `/admin/products` | All products incl. inactive (`search`, `page`, `pageSize`) |
+| POST | `/admin/products` | Create a product (409 on duplicate SKU) |
+| PATCH | `/admin/products/:id` | Edit a product (SKU immutable) |
+| PATCH | `/admin/products/:id/deactivate` | Soft-delete (deactivate) a product |
+| PATCH | `/admin/products/:id/reactivate` | Reactivate a product |
+| GET | `/admin/orders` | All orders (`status`, customer `search`, `page`, `pageSize`) |
+| PATCH | `/admin/orders/:id/status` | Change status (state-machine enforced; cancel restocks) |
+| GET | `/admin/analytics` | Dashboard: sales, order counts by status, top products, recent orders |
+| GET | `/admin/articles` | List all articles incl. drafts (`search`, `page`, `pageSize`) |
+| GET | `/admin/articles/categories` | List all article categories |
+| POST | `/admin/articles/categories` | Create an article category (409 on duplicate slug) |
+| GET | `/admin/articles/:id` | A single article incl. drafts |
+| POST | `/admin/articles` | Create an article (409 on duplicate slug) |
+| PATCH | `/admin/articles/:id` | Edit an article |
+| PATCH | `/admin/articles/:id/publish` | Publish an article |
+| PATCH | `/admin/articles/:id/unpublish` | Unpublish (revert to draft) |
+| DELETE | `/admin/articles/:id` | Delete an article |
+| POST | `/admin/faq/categories` | Create a FAQ category |
+| PATCH | `/admin/faq/categories/:id` | Update / reorder a FAQ category |
+| DELETE | `/admin/faq/categories/:id` | Delete a FAQ category (items cascade) |
+| POST | `/admin/faq/items` | Create a FAQ item under a category |
+| PATCH | `/admin/faq/items/:id` | Update / move / reorder a FAQ item |
+| DELETE | `/admin/faq/items/:id` | Delete a FAQ item |
+| GET | `/admin/content` | List all static content blocks |
+| GET | `/admin/content/:key` | A single content block by key |
+| PUT | `/admin/content/:key` | Create or replace a content block by key |
+| DELETE | `/admin/content/:key` | Delete a content block by key |
+| GET | `/admin/contact` | List contact messages (paginated, newest first) |
+| PATCH | `/admin/contact/:id` | Mark a contact message handled / unhandled |
+| DELETE | `/admin/contact/:id` | Delete a contact message |
 
 ## Useful commands (backend)
 
@@ -245,7 +313,12 @@ unauthenticated / error states (15 tests).
 | `JWT_SECRET` | Secret used to sign JWTs (keep out of source control) |
 | `JWT_EXPIRES_IN` | Token lifetime (e.g. `7d`) |
 | `PORT` | API port (default 3001) |
+| `NODE_ENV` | `development` / `production`. Gates Swagger UI **and** the dev-only echo of the password-reset token in the `/auth/forgot-password` response (echoed only when `!== 'production'`) |
+| `AUTH_THROTTLE_LIMIT` | Max auth attempts (signup/login/forgot/reset) per 60s window per IP (default 10) |
 | `FRONTEND_ORIGIN` | Allowed CORS origin (default `http://localhost:3000`) |
+| `STRIPE_SECRET_KEY` | Stripe Test Mode secret key (server-only). Blank disables payments (calls return 503) |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret; every incoming webhook signature is verified against it |
+| `STRIPE_CURRENCY` | ISO 4217 currency for Checkout line items, lowercase (default `usd`) |
 
 **frontend/.env.local**
 

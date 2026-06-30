@@ -325,10 +325,20 @@ export class OrdersService {
 
       if (isCancellation(nextStatus)) {
         for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
+          // Restock the SAME row that was decremented at checkout: the variant when the line had
+          // one, otherwise the parent product. (Mirrors createOrderFromCart's variant-aware
+          // decrement — restocking the product for a variant line would corrupt both counts.)
+          if (item.variantId) {
+            await tx.productVariant.update({
+              where: { id: item.variantId },
+              data: { stock: { increment: item.quantity } },
+            });
+          } else {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+            });
+          }
         }
       }
 

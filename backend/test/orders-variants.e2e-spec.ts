@@ -2,7 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
-import { Prisma } from '@prisma/client';
+import { OrderStatus, Prisma, Role } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -17,6 +18,7 @@ describe('Orders with variants (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let cookie = '';
+  let adminCookie = '';
 
   const PRODUCT_PRICE = 5000;
   const PRODUCT_STOCK = 100; // intentionally large to prove the variant ceiling is what bites
@@ -38,6 +40,11 @@ describe('Orders with variants (e2e)', () => {
     request(app.getHttpServer()).post('/cart/items').set('Cookie', cookie).send(body);
   const checkout = () => request(app.getHttpServer()).post('/orders').set('Cookie', cookie).send({});
   const getCart = () => request(app.getHttpServer()).get('/cart').set('Cookie', cookie);
+  const setStatus = (id: string, status: OrderStatus) =>
+    request(app.getHttpServer())
+      .patch(`/admin/orders/${id}/status`)
+      .set('Cookie', adminCookie)
+      .send({ status });
 
   const variantStock = async (id: string): Promise<number> =>
     (await prisma.productVariant.findUniqueOrThrow({ where: { id } })).stock;
@@ -83,6 +90,20 @@ describe('Orders with variants (e2e)', () => {
       await request(app.getHttpServer())
         .post('/auth/signup')
         .send({ email: 'ordervariant@shop.test', name: 'OV', password: 'Password123!' }),
+    );
+
+    await prisma.user.create({
+      data: {
+        email: 'ov-admin@shop.test',
+        name: 'OV Admin',
+        role: Role.ADMIN,
+        passwordHash: await bcrypt.hash('Admin123!', 12),
+      },
+    });
+    adminCookie = authCookie(
+      await request(app.getHttpServer())
+        .post('/auth/login')
+        .send({ email: 'ov-admin@shop.test', password: 'Admin123!' }),
     );
   });
 
@@ -213,5 +234,51 @@ describe('Orders with variants (e2e)', () => {
     expect(await variantStock(variantId)).toBeGreaterThanOrEqual(0);
     const stillThere = await prisma.productVariant.findUnique({ where: { id: variantId } });
     expect(stillThere).not.toBeNull();
+  });
+
+  // MEDIUM-1 fix: cancelling an order restocks the SAME row decremented at checkout — the VARIANT
+  // when the line had one, not the parent product. Previously this wrongly incremented the product
+  // and left the variant short.
+  it('cancelling a VARIANT order restores the VARIANT stock and leaves the product base stock unchanged', async () => {
+    await add({ productId, variantId, quantity: 2 });
+    const order = (await checkout()).body;
+    expect(order.items[0].variantId).toBe(variantId);
+
+    // Checkout decremented the variant, not the product.
+    expect(await variantStock(variantId)).toBe(VAR_STOCK - 2);
+    expect(await productStock(productId)).toBe(PRODUCT_STOCK);
+
+    // Cancel the PENDING order as admin.
+    const cancelled = await setStatus(order.id, OrderStatus.CANCELLED);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.status).toBe(OrderStatus.CANCELLED);
+
+    // The VARIANT is restocked to its pre-order value; the product base stock never moved.
+    expect(await variantStock(variantId)).toBe(VAR_STOCK);
+    expect(await productStock(productId)).toBe(PRODUCT_STOCK);
+  });
+
+  it('cancelling from PROCESSING also restocks the variant (not the product)', async () => {
+    await add({ productId, variantId, quantity: 1 });
+    const order = (await checkout()).body;
+    expect(await variantStock(variantId)).toBe(VAR_STOCK - 1);
+
+    expect((await setStatus(order.id, OrderStatus.PROCESSING)).status).toBe(200);
+    // Still short while processing (not yet cancelled).
+    expect(await variantStock(variantId)).toBe(VAR_STOCK - 1);
+
+    const cancelled = await setStatus(order.id, OrderStatus.CANCELLED);
+    expect(cancelled.status).toBe(200);
+    expect(await variantStock(variantId)).toBe(VAR_STOCK); // restored
+    expect(await productStock(productId)).toBe(PRODUCT_STOCK); // untouched throughout
+  });
+
+  it('a variant-less line still restocks the PRODUCT on cancellation (legacy path unchanged)', async () => {
+    await add({ productId: plainId, quantity: 2 });
+    const order = (await checkout()).body;
+    expect(await productStock(plainId)).toBe(PLAIN_STOCK - 2);
+
+    expect((await setStatus(order.id, OrderStatus.CANCELLED)).status).toBe(200);
+    expect(await productStock(plainId)).toBe(PLAIN_STOCK); // restored on the product row
   });
 });

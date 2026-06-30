@@ -143,6 +143,7 @@ export class AuthController {
   }
 
   /** Change the password of the signed-in user (requires the current password). */
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @Post('change-password')
   @ApiCookieAuth()

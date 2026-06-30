@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ArticleStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminArticleQueryDto } from './dto/admin-article-query.dto';
@@ -176,7 +176,7 @@ export class ArticlesService {
    * A duplicate slug surfaces as Prisma P2002 -> 409 via the global filter.
    */
   async create(dto: CreateArticleDto): Promise<AdminArticleResponseDto> {
-    const slug = await this.resolveUniqueSlug(dto.slug ?? dto.title);
+    const slug = await this.resolveSlugForWrite(dto.slug, dto.title);
     const status = dto.status ?? ArticleStatus.DRAFT;
 
     const article = await this.prisma.article.create({
@@ -223,7 +223,7 @@ export class ArticlesService {
         : { disconnect: true };
     }
     if (dto.slug !== undefined) {
-      data.slug = await this.resolveUniqueSlug(dto.slug, id);
+      data.slug = await this.resolveSlugForWrite(dto.slug, undefined, id);
     }
     if (dto.status !== undefined && dto.status !== existing.status) {
       data.status = dto.status;
@@ -345,6 +345,28 @@ export class ArticlesService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
     return slug.length > 0 ? slug : 'article';
+  }
+
+  /**
+   * Decide the slug for a create/update:
+   *  - An EXPLICIT slug from the admin is used verbatim (after slugify); a collision is a 409 —
+   *    we never silently rewrite an admin-chosen URL (honours the documented contract).
+   *  - An OMITTED slug is derived from the fallback (the title) and auto-suffixed to stay unique.
+   * `excludeId` lets an update keep its own slug without colliding with itself.
+   */
+  private async resolveSlugForWrite(
+    explicit: string | undefined,
+    fallbackBase: string | undefined,
+    excludeId?: string,
+  ): Promise<string> {
+    if (explicit !== undefined && explicit.trim() !== '') {
+      const slug = this.slugify(explicit);
+      if (await this.slugTaken(slug, excludeId)) {
+        throw new ConflictException('An article with this slug already exists');
+      }
+      return slug;
+    }
+    return this.resolveUniqueSlug(fallbackBase ?? 'article', excludeId);
   }
 
   /**

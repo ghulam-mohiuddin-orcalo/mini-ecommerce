@@ -186,7 +186,7 @@ export class SiteContentService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where: Prisma.ContactMessageWhereInput =
-      query.handled !== undefined ? { handled: query.handled } : {};
+      query.handled !== undefined ? { handled: query.handled === 'true' } : {};
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.contactMessage.findMany({

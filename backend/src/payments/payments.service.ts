@@ -39,7 +39,7 @@ export class PaymentsService {
   async createCheckoutSession(userId: string): Promise<CheckoutSessionResponseDto> {
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
-      include: { items: { include: { product: true }, orderBy: { createdAt: 'asc' } } },
+      include: { items: { include: { product: true, variant: true }, orderBy: { createdAt: 'asc' } } },
     });
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('Your cart is empty');
@@ -47,22 +47,27 @@ export class PaymentsService {
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = cart.items.map((item) => {
       const p = item.product;
-      // Friendly pre-checks; the webhook re-validates authoritatively at fulfilment time.
-      if (!p.isActive) {
-        throw new ConflictException(`"${p.name}" is no longer available`);
+      const v = item.variant;
+      // Variant lines price + stock from the VARIANT row (matches fulfilment); else the product.
+      // The client never supplies prices. The webhook re-validates authoritatively at fulfilment.
+      const unitPriceCents = v ? v.priceCents : p.priceCents;
+      const availableStock = v ? v.stock : p.stock;
+      const name = v ? `${p.name} — ${v.label}` : p.name;
+      if (!p.isActive || (v && !v.isActive)) {
+        throw new ConflictException(`"${name}" is no longer available`);
       }
-      if (item.quantity > p.stock) {
-        throw new ConflictException(`Only ${p.stock} unit(s) of "${p.name}" are in stock`);
+      if (item.quantity > availableStock) {
+        throw new ConflictException(`Only ${availableStock} unit(s) of "${name}" are in stock`);
       }
       return {
         quantity: item.quantity,
         price_data: {
           currency: this.currency,
-          unit_amount: p.priceCents, // authoritative DB price in minor units — never the client's
+          unit_amount: unitPriceCents, // authoritative DB price (variant-aware) — never the client's
           product_data: {
-            name: p.name,
+            name,
             images: p.imageUrl.startsWith('http') ? [p.imageUrl] : undefined,
-            metadata: { productId: p.id },
+            metadata: { productId: p.id, variantId: v?.id ?? '' },
           },
         },
       };
@@ -96,7 +101,7 @@ export class PaymentsService {
   async createPaymentIntent(userId: string): Promise<PaymentIntentResponseDto> {
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
-      include: { items: { include: { product: true }, orderBy: { createdAt: 'asc' } } },
+      include: { items: { include: { product: true, variant: true }, orderBy: { createdAt: 'asc' } } },
     });
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('Your cart is empty');
@@ -106,13 +111,18 @@ export class PaymentsService {
     let amountCents = 0;
     for (const item of cart.items) {
       const p = item.product;
-      if (!p.isActive) {
-        throw new ConflictException(`"${p.name}" is no longer available`);
+      const v = item.variant;
+      // Variant lines price + stock from the VARIANT row (matches fulfilment); else the product.
+      const unitPriceCents = v ? v.priceCents : p.priceCents;
+      const availableStock = v ? v.stock : p.stock;
+      const name = v ? `${p.name} — ${v.label}` : p.name;
+      if (!p.isActive || (v && !v.isActive)) {
+        throw new ConflictException(`"${name}" is no longer available`);
       }
-      if (item.quantity > p.stock) {
-        throw new ConflictException(`Only ${p.stock} unit(s) of "${p.name}" are in stock`);
+      if (item.quantity > availableStock) {
+        throw new ConflictException(`Only ${availableStock} unit(s) of "${name}" are in stock`);
       }
-      amountCents += p.priceCents * item.quantity; // DB price in minor units — never the client's
+      amountCents += unitPriceCents * item.quantity; // DB price (variant-aware) — never the client's
     }
 
     const intent = await this.stripe.createPaymentIntent({

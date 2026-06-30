@@ -1,19 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class AdminContactQueryDto {
+  // NOTE: kept as a validated STRING rather than a boolean. The global ValidationPipe runs with
+  // `transformOptions.enableImplicitConversion: true`, which coerces a boolean-typed property from
+  // the query string via Boolean(value) — turning the string 'false' into `true` and inverting the
+  // filter. Parsing the string ourselves in the service sidesteps that coercion entirely.
   @ApiPropertyOptional({
-    description: 'Filter by handled flag. Omit to return both handled and unhandled.',
+    enum: ['true', 'false'],
+    description: "Filter by handled flag ('true' | 'false'). Omit to return both.",
   })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => {
-    if (value === 'true' || value === true) return true;
-    if (value === 'false' || value === false) return false;
-    return value;
-  })
-  @IsBoolean()
-  handled?: boolean;
+  @IsIn(['true', 'false'])
+  handled?: string;
 
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
