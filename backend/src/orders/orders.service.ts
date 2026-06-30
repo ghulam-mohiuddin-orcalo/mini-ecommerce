@@ -56,7 +56,7 @@ export class OrdersService {
   private createOrderFromCart(
     userId: string,
     settle: (totalCents: number) => Promise<{ reference: string | null }>,
-    opts: { stripeSessionId?: string } = {},
+    opts: { stripeSessionId?: string; expectedTotalCents?: number } = {},
   ): Promise<OrderWithItems> {
     return this.prisma.$transaction(async (tx) => {
       if (opts.stripeSessionId) {
@@ -107,6 +107,18 @@ export class OrdersService {
           unitPriceCents,
           quantity: item.quantity,
         });
+      }
+
+      // Amount integrity: the amount the customer was charged was fixed when the PaymentIntent
+      // (or Checkout Session) was created from the cart. It must equal the total we just recomputed
+      // from authoritative DB prices. If the cart changed after payment was authorized, fail
+      // safely — the transaction rolls back, no order is created and no stock is consumed (a real
+      // system would refund the now-orphaned payment). This makes client-side amount tampering or
+      // a stale-tab race impossible to turn into a mispriced order.
+      if (opts.expectedTotalCents !== undefined && opts.expectedTotalCents !== totalCents) {
+        throw new ConflictException(
+          'The order total changed after payment was authorized; no order was created.',
+        );
       }
 
       const { reference } = await settle(totalCents);
@@ -162,12 +174,14 @@ export class OrdersService {
     sessionId: string;
     userId: string;
     paymentRef: string | null;
+    /** The amount Stripe actually authorized (minor units). Asserted against the recomputed total. */
+    expectedTotalCents?: number;
   }): Promise<OrderResponseDto> {
     try {
       const order = await this.createOrderFromCart(
         input.userId,
         () => Promise.resolve({ reference: input.paymentRef }),
-        { stripeSessionId: input.sessionId },
+        { stripeSessionId: input.sessionId, expectedTotalCents: input.expectedTotalCents },
       );
       return toOrderResponse(order);
     } catch (e) {

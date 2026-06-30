@@ -8,7 +8,7 @@ const FOOTER_GROUPS: { heading: string; links: { label: string; href: string }[]
     links: [
       { label: 'All products', href: '/products' },
       { label: 'New arrivals', href: '/#new-arrivals' },
-      { label: 'Wishlist', href: '/wishlist' },
+      { label: 'Your orders', href: '/orders' },
     ],
   },
   {

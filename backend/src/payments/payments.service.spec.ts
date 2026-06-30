@@ -32,6 +32,7 @@ describe('PaymentsService (webhook)', () => {
       payment_status: 'paid',
       status: 'complete',
       payment_intent: 'pi_test_123',
+      amount_total: 5000,
       metadata: { userId: 'user-1', cartId: 'cart-1' },
       ...overrides,
     }) as Stripe.Checkout.Session;
@@ -88,6 +89,7 @@ describe('PaymentsService (webhook)', () => {
       sessionId: 'cs_test_123',
       userId: 'user-1',
       paymentRef: 'pi_test_123',
+      expectedTotalCents: 5000,
     });
   });
 
@@ -106,6 +108,7 @@ describe('PaymentsService (webhook)', () => {
       sessionId: 'cs_test_123',
       userId: 'user-1',
       paymentRef: 'pi_test_123',
+      expectedTotalCents: 5000,
     });
   });
 

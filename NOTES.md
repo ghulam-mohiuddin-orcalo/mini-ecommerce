@@ -87,7 +87,7 @@ build progresses (not at the end).
   proxy. **Filters are synchronized with URL search params** (shareable/bookmarkable), and so
   filter state is preserved across list↔detail navigation (the catalog route re-reads the URL).
   Loading skeletons, empty state, and error state (with retry) are all present.
-- **Design:** continued the custom "Linen & Pine" system — new primitives (`Input`, `Select`,
+- **Design:** continued the custom "Pine & Parcel" system — new primitives (`Input`, `Select`,
   `Badge`, `Skeleton`, `States`) and store components (`ProductCard`, grid, filters, pagination)
   built from our tokens, no template.
 - **Deliberate decisions:** plain `<img>` (lazy/async) over `next/image` — avoids remote-image
@@ -257,6 +257,12 @@ build progresses (not at the end).
   touching controllers or the frontend.
 
 ### Stripe Checkout (payment upgrade) — Test Mode, reuse the integrity core
+> **Superseded — kept as history.** The storefront later moved from hosted Checkout to an
+> **embedded Stripe Payment Element** so the customer never leaves the site (see
+> *"Embedded checkout"* below). The reasoning here records the original hosted-Checkout decision
+> and still describes the server-authoritative + idempotent fulfilment model that the embedded
+> flow reuses unchanged. The hosted-Checkout endpoints remain in the code behind the same core.
+
 - **What changed:** the mocked in-process payment was replaced with **Stripe Checkout (Test
   Mode)**. The *integrity core was not rewritten* — the same transactional `createOrderFromCart`
   (re-read products → atomic stock decrement → server-side total → create order/items → clear
@@ -317,6 +323,38 @@ build progresses (not at the end).
   logic stays swappable and its e2e tests keep exercising the rollback paths — the Stripe upgrade
   is additive, not a rewrite of unrelated code.
 
+### Embedded checkout (Stripe Payment Element) — moved on-site
+- **Why the change:** the assessment's checkout requirement is an **in-app** experience where the
+  customer never leaves the site. Hosted Checkout (above) redirects to `checkout.stripe.com`, so we
+  moved the storefront to the **embedded Payment Element** — Stripe-hosted *iframes* mounted inside
+  our `/checkout` page (card data still never touches our servers).
+- **The integrity core was reused verbatim.** No rewrite: the same transactional
+  `createOrderFromCart` (re-read products → atomic stock decrement → server-side total → create
+  order/items → clear cart) backs the embedded path. The **PaymentIntent id is the idempotency
+  key**, stored in the existing unique `stripeSessionId` column — so **no DB migration** was needed
+  and exactly-once fulfilment carries over unchanged.
+- **Flow:** `POST /payments/payment-intent` computes the amount **from DB prices** and returns a
+  `clientSecret` (+ `userId`/`cartId` in PI metadata). The page mounts the Payment Element and
+  collects shipping/billing (sent to Stripe for receipt/dashboard, **not persisted** — Order has no
+  address columns and adding them wasn't required). `stripe.confirmPayment({ redirect: 'if_required' })`
+  confirms cards in place; 3-D Secure returns to `/checkout/success?payment_intent=…`. Fulfilment is
+  reached by a success-poll (`GET /payments/payment-intent/:id`) **and/or** a signed
+  `payment_intent.succeeded` webhook — both converge on the idempotent core, so it works with or
+  without a local webhook forwarder.
+- **Amount-integrity hardening (anti-tamper / stale-cart guard):** the PaymentIntent's authorized
+  `amount` is passed into `createOrderFromCart` as `expectedTotalCents`; inside the transaction the
+  recomputed server-side total **must equal** it or the whole thing rolls back (no order, no stock
+  consumed — a production system would refund). So a client can't influence the charged amount, and
+  a cart that changed after payment was authorized fails safely rather than producing a mispriced
+  order. The frontend poll surfaces that terminal failure instead of spinning.
+- **Theme-aware, accessible:** the Payment Element's `appearance` is themed for light/dark (the one
+  place literal colors are unavoidable — a cross-origin iframe can't read our CSS variables); the
+  address form uses inline, `aria-describedby`-linked validation (extracted to a pure, unit-tested
+  `lib/checkout-validation.ts`).
+- **New client dependency:** `@stripe/stripe-js` + `@stripe/react-stripe-js` (the hosted flow needed
+  neither). The publishable key (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`) is now actually used in the
+  browser; if it's absent the page shows a "payments not configured" state rather than crashing.
+
 ### API documentation (Swagger / OpenAPI)
 - `@nestjs/swagger` exposes Swagger UI at **`/api/docs`** (OpenAPI JSON at `/api/docs-json`),
   **gated to non-production** (`NODE_ENV !== 'production'`) so internals aren't exposed in prod.
@@ -337,7 +375,7 @@ build progresses (not at the end).
   `PaymentProvider`/transactional core (the mock path is retained behind the same core). Hosted
   Checkout was chosen over Elements to keep card data off our servers (PCI SAQ-A) and get
   3DS/wallets/receipts for free — see the dedicated section above.
-- **Tailwind v4 + custom design tokens** ("Linen & Pine") instead of an off-the-shelf UI kit,
+- **Tailwind v4 + custom design tokens** ("Pine & Parcel") instead of an off-the-shelf UI kit,
   per the assessment's design requirement.
 
 ## Where the agent helped / where it failed (mistakes caught)
@@ -381,6 +419,20 @@ it was caught.
    tests passed in isolation throughout — the failure was purely shared-DB test ordering.
    *Lesson: shared-DB e2e suites must each be self-sufficient in FK-safe order; don't rely on
    run order.*
+7. **Embedded checkout shipped with a first-load race (caught by reproducing, not by reading).**
+   The first cut of the embedded checkout created the PaymentIntent imperatively in a
+   `useEffect`+`useRef`+`mutate()`. It worked on a hard refresh but, on **client-side navigation**
+   (cart → checkout), the page got stuck on the loading skeleton — data only appeared after a manual
+   refresh. The agent's first instinct (and a static read) said the logic looked correct. Root cause,
+   found by **reproducing it in a headless browser**: under React's dev StrictMode mount→unmount→
+   remount, `mutate()` fired during the churn; the `useRef` guard survived the remount but the
+   `useMutation` *observer* was recreated, so the in-flight result was orphaned and the guard blocked
+   any retry. Fixed properly by fetching the PaymentIntent with a **cache-backed `useQuery`**
+   (`usePaymentIntent`) keyed on cart state — remount-safe, deterministic, deduped — and removing a
+   `key={resolvedTheme}` that remounted Stripe Elements. A **regression test** now asserts the form
+   renders on the first render once the intent is ready. *Lesson: "works on refresh, not on
+   navigation" is almost always a remount/cache-lifecycle bug — reproduce the exact navigation, don't
+   trust a static read; and fetch render-critical data with a query, not an effect.*
 
 ## Supervision & verification
 
@@ -495,15 +547,43 @@ Nothing is accepted on a green build alone. Verification performed so far:
     creation.
   - Frontend `tsc --noEmit` clean and a full `next build` succeeds with the new
     `/checkout/success` and `/checkout/cancel` routes.
+- **Embedded checkout + final polish pass:**
+  - **Reproduced the first-load checkout bug in a headless browser** (system Chrome via
+    `playwright-core`), confirmed the fix (form renders on first client-nav, 0 skeletons), and
+    verified *navigate-away-and-back reuses the same PaymentIntent* (exactly one create call) and
+    the *empty-cart* state — then removed the throwaway harness.
+  - **Live end-to-end against Stripe Test Mode:** created a PaymentIntent from the cart
+    (amount = 2 × 3299 = 6598, server-computed), confirmed it with `pm_card_visa`, polled the
+    status endpoint → order created once (`PENDING`, total 6598, snapshot correct), cart cleared,
+    and a second poll returned the **same** order id (idempotent). New endpoints return **401**
+    unauthenticated.
+  - **Amount-integrity** wired through `expectedTotalCents` and asserted in the payments unit spec
+    (the authorized amount is forwarded to fulfilment).
+  - **Frontend tests** added (Vitest + Testing Library): checkout validation, money formatting +
+    line-total summation, and checkout-page render states incl. the regression — **15 tests**,
+    `npm test` green; `tsc --noEmit` and `next build` clean.
 
 ## Design workflow
 
-- The visual identity is a **custom design system** ("Linen & Pine"): warm paper neutrals, a
-  pine-green brand accent (deliberately away from default blue), an amber highlight, generous
-  radii and soft shadows. Encoded as Tailwind v4 tokens in `globals.css` and consumed through
-  reusable primitives (e.g. `Button`).
-- *(To be expanded as the UI is built: which design agent directed the layouts and how the look
-  was iterated, per the assessment's design requirement.)*
+- **Tooling:** the visual direction was produced with a **design agent** (Claude's design tooling)
+  and iterated in-editor with Claude Code. The reference concept was a botanical "Verdant
+  Storefront" — pine-green over warm paper — which became the **"Pine & Parcel"** system.
+- **How it was directed & iterated:** I drove the agent from a written design brief (palette,
+  type, radii/shadow scale, component inventory) rather than accepting a generic first pass —
+  reviewing each surface and pushing back on spacing, hierarchy, and consistency. The look evolved
+  across passes: (1) the base token system + primitives; (2) a polish pass adding the serif display
+  face (Newsreader) for headings against Manrope body text, softer layered shadows, and hover/lift
+  motion; (3) a **full light + dark theme** built entirely at the token layer — the same
+  `--color-*` variables redefined under `html[data-theme='dark']`, so every utility flips with no
+  per-component dark variants — plus a pre-paint bootstrap script that resolves the saved/`system`
+  theme **before first paint** (no flash-of-wrong-theme), and a header toggle.
+- **Custom, not a template:** every primitive (`Button`, `Input`, `Select`, `Badge`, `Toggle`,
+  `Skeleton`, `States`, `Icon`) and layout is composed from our own Tailwind v4 tokens via `cn()`;
+  no off-the-shelf UI kit or theme was dropped in. Icons are inlined Lucide paths (no runtime UI
+  dependency).
+- **Accessibility carried through the design:** visible focus rings on every interactive element,
+  semantic landmarks, ARIA on menus/toggles/forms, `aria-describedby` inline form errors, an
+  `sr-only` data-table fallback for the dashboard chart, and `prefers-reduced-motion` honoured.
 
 ## Assumptions
 
@@ -522,16 +602,30 @@ Nothing is accepted on a green build alone. Verification performed so far:
 - **Admin is a role-gated area** of the single app, not a separate deployable.
 - **Product images via URL** (validated), not file upload — avoids storage/multipart surface in
   the time budget.
+- **Checkout addresses go to Stripe, not our DB.** Shipping/billing collected at checkout are sent
+  to Stripe (`shipping` + `billing_details`, receipt email) for the payment record/receipt, but the
+  `Order` model has **no address columns** — persisting them wasn't required and adding them would be
+  a schema change for no in-app consumer. Flagged as future work if order addresses become a feature.
+- **Theme is a device preference.** Light/dark/system is stored in `localStorage` and applied
+  before paint; it isn't synced to the account (no backend preference store in scope).
+- **A few account affordances are demo-only and labelled as such:** the settings *Change password*
+  form validates client-side but isn't wired to a backend (notice shown), *Delete account* is
+  disabled ("coming soon"), and *Edit profile* shows a demo notice. They're clearly marked rather
+  than presented as working.
 
 ## Trade-offs and scope
 
-- **Built fully so far:** project scaffolding, the Next→Nest proxy, the design-system
-  foundation, and the complete data layer (schema, migrations, idempotent realistic seed) with
-  relational + value integrity verified.
-- **Deliberately simplified:** images are URLs; categories are strings. (Payment is now **Stripe
-  Checkout in Test Mode**; the mock provider is kept behind the same core for the rollback tests.)
+- **Built fully:** the whole storefront + admin end-to-end (catalog, cart, **embedded Stripe
+  checkout**, orders, auth, profile, settings, recommendations, admin CRUD/orders/analytics), the
+  complete data layer (schema, migrations, idempotent seed) with relational + value integrity
+  verified, a custom light/dark design system, and backend + frontend test suites.
+- **Deliberately simplified:** images are URLs (not uploads); categories are strings; checkout
+  addresses aren't persisted. Payment is **Stripe Test Mode** via the embedded Payment Element; the
+  legacy hosted-Checkout endpoints and the in-process mock provider are both retained behind the same
+  transactional core (the mock still backs the rollback e2e tests).
 - **Known future work:** migrate the Prisma seed config to `prisma.config.ts` (the
   `package.json#prisma` key is deprecated in Prisma 7; harmless on the pinned v6); add a
   `Category` entity if category management is needed; persist a record of refunds/failed
-  fulfilments (today an unfulfillable paid session is logged for manual refund); file upload;
-  frontend component tests.
+  fulfilments (today an unfulfillable paid payment is logged for manual refund); wire the demo-only
+  account actions (change password / edit profile / delete account) and persist order addresses if
+  those become real features; file upload; broaden frontend test coverage beyond checkout.

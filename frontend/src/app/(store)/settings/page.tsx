@@ -206,6 +206,11 @@ function SettingsContent() {
 
       {/* Security */}
       <Section icon="lock" title="Security" description="Update the password for your account.">
+        <p className="mb-4 flex items-start gap-2 rounded-lg bg-paper-2 px-3.5 py-2.5 text-xs text-ink-soft">
+          <Icon name="alert-triangle" size={14} className="mt-0.5 shrink-0 text-muted" />
+          Demo build — password changes are validated client-side but not yet connected to a backend,
+          so nothing is saved.
+        </p>
         <form onSubmit={onUpdatePassword} className="flex max-w-md flex-col gap-4">
           <PasswordField
             id="current-password"

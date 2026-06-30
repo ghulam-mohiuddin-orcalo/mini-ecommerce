@@ -14,9 +14,24 @@ sharing a single API. Built as a timed full-stack assessment.
 | Backend | NestJS 11 + TypeScript |
 | ORM / DB | Prisma 6 + PostgreSQL 16 |
 | Frontend | Next.js 15 (App Router) + TypeScript |
-| Styling | Tailwind CSS v4 + custom design system (no off-the-shelf UI kit) |
+| Styling | Tailwind CSS v4 + custom **"Pine & Parcel"** design system (no off-the-shelf UI kit); light + dark themes |
+| Payments | Embedded **Stripe Payment Element** (Test Mode); order created server-side only after Stripe confirms |
 | Auth | JWT in an httpOnly cookie (frontend proxies `/api/*` to the backend, same-origin) |
 | Money | Integer **minor units (cents)** everywhere |
+
+## Features
+
+- **Storefront:** product catalog (search, category + price-range filter, sort by price/newest,
+  pagination), product detail with quantity add-to-cart, persistent per-user cart, **in-app
+  checkout** (embedded Stripe Payment Element with shipping/billing), order history + detail,
+  signup/login, profile, settings, and personalized **product suggestions**.
+- **Admin panel** (role-gated): product create/edit/soft-delete, order management with a status
+  state machine (`pending → processing → shipped → delivered`, `cancelled` restocks), and a
+  dashboard (total sales, orders-by-status chart, top sellers) with an accessible data-table
+  fallback for the chart.
+- **Cross-cutting:** light/dark mode with no flash-of-wrong-theme, loading/empty/error states
+  throughout, client + server validation, integer-cents money, and accessible, responsive UI.
+- **Static pages:** About, Contact, FAQ.
 
 ## Prerequisites
 
@@ -70,46 +85,57 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 Seed data also includes 14 products across 5 categories (Apparel, Home, Electronics, Books,
 Outdoors), 5 orders spanning every status, and a populated cart for the customer.
 
-## Payment (Stripe Checkout — Test Mode)
+## Payment (embedded Stripe Payment Element — Test Mode)
 
-Checkout uses **Stripe Checkout** in **Test Mode** (no real charges). The customer clicks
-**"Proceed to Payment"** and is redirected to Stripe's hosted Checkout page; **the order is only
-created after Stripe confirms payment**, never before.
+Checkout is **fully in-app** (Test Mode, no real charges): the customer enters shipping/billing
+details and pays with an embedded **Stripe Payment Element** on `/checkout` and **never leaves the
+site**. As before, **the order is only created after Stripe confirms payment**, never before, and
+all amounts are computed server-side from the database.
 
 How it works:
 
-1. `POST /payments/checkout-session` builds the Stripe line items **from current database prices**
-   (the client never sends prices/totals) and stores `userId`/`cartId` in the session metadata.
-   The browser is redirected to the returned Stripe URL.
-2. On payment, Stripe sends a signed **`checkout.session.completed`** webhook to
-   `POST /payments/webhook`. The signature is verified, then the existing **transactional checkout
-   core** runs: re-read products, validate stock, recompute totals server-side, decrement stock,
-   create the order + items, and clear the cart — all in one transaction. If any check fails, no
-   order is created.
-3. The success page (`/checkout/success`) polls session status and, once fulfilled, forwards to
-   the existing order confirmation page. Fulfilment is **idempotent** (unique `stripeSessionId`),
-   so duplicate webhook deliveries never create a second order — and the success page can safely
-   reconcile directly with Stripe even when no webhook forwarder is running locally.
+1. On `/checkout`, `POST /payments/payment-intent` creates a **PaymentIntent** whose `amount` is
+   computed **from current database prices** (the client never sends prices/totals); `userId`/`cartId`
+   go in the PaymentIntent metadata. The returned `clientSecret` mounts the Stripe Payment Element
+   in the page.
+2. The customer fills shipping + billing and submits. The browser calls
+   `stripe.confirmPayment({ redirect: 'if_required' })` — card payments confirm **in-place**; only a
+   step like 3-D Secure triggers a redirect (handled, see below). Shipping/billing are sent to Stripe
+   (receipt + dashboard), not persisted in our DB.
+3. The order is created **only** from a Stripe-confirmed payment. Fulfilment runs through the existing
+   **transactional checkout core** — re-read products, validate stock, **recompute the total
+   server-side, assert it equals the amount Stripe authorized**, decrement stock, create the order +
+   items, clear the cart — all in one transaction. If any check fails (including an amount mismatch),
+   **no order is created**. It is reached two ways, both idempotent on the PaymentIntent id (stored in
+   the unique `stripeSessionId` column):
+   - the page polls `GET /payments/payment-intent/:id`, which fulfils on the spot if Stripe reports the
+     PaymentIntent `succeeded`; and/or
+   - a signed **`payment_intent.succeeded`** webhook to `POST /payments/webhook`.
+   Either path creates the order **exactly once**, so it works with or without a local webhook
+   forwarder, and duplicate deliveries never double-create.
+4. If a redirect *was* required (e.g. 3-D Secure), Stripe returns to `/checkout/success?payment_intent=…`,
+   which polls the same endpoint and forwards to the order confirmation page (`/orders/:id`).
 
-**Why Stripe Checkout (not Elements):** Checkout is Stripe-hosted, so card data never touches our
-servers (PCI SAQ-A), and it covers 3DS/SCA, wallets, and receipts out of the box — maximum payment
-coverage for minimal code, exactly right for this scope. Full reasoning in
-[`NOTES.md`](./NOTES.md).
+**Why embedded Elements:** the assessment calls for an in-app checkout where the user never leaves the
+site, so the storefront uses the **Payment Element** (Stripe-hosted *iframes* embedded in our page —
+card data still never touches our servers). The legacy hosted-Checkout endpoints
+(`/payments/checkout-session`) remain in the codebase behind the same fulfilment core; see
+[`NOTES.md`](./NOTES.md) for the migration and the trade-offs.
 
 ### Configuring Stripe (Test Mode)
 
-Add your test keys to `backend/.env` (and the publishable key to `frontend/.env.local`):
+Add your test keys to `backend/.env` and `frontend/.env.local`:
 
 ```bash
 # backend/.env
 STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...      # from `stripe listen` (below) or the Dashboard
-# frontend/.env.local
+STRIPE_WEBHOOK_SECRET=whsec_...      # optional locally — see below
+# frontend/.env.local  (the publishable key is used by Stripe.js in the browser)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
 
-To receive webhooks locally, run the [Stripe CLI](https://stripe.com/docs/stripe-cli) and forward
-events to the backend (which is reached directly, not via the Next proxy):
+The success page reconciles directly with Stripe, so **webhook forwarding is optional** for local
+dev. To exercise the webhook path too, run the [Stripe CLI](https://stripe.com/docs/stripe-cli):
 
 ```bash
 stripe listen --forward-to http://localhost:3001/payments/webhook
@@ -117,7 +143,9 @@ stripe listen --forward-to http://localhost:3001/payments/webhook
 ```
 
 Pay with Stripe's test card **`4242 4242 4242 4242`**, any future expiry, any CVC and ZIP.
-If `STRIPE_SECRET_KEY` is unset the app still boots, but any Checkout call returns **503**.
+If `STRIPE_SECRET_KEY` is unset the app still boots, but any payment call returns **503**; if
+`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is unset the checkout page shows a clear "payments not
+configured" message instead of the card form.
 
 ## Testing
 
@@ -148,6 +176,18 @@ webhook handler** (signature rejection, paid-event fulfilment, idempotent duplic
 out-of-stock acknowledgement, unrelated/unpaid events) — they run without a database or a live
 Stripe account via `npm test` (20 tests).
 
+**Frontend tests** (Vitest + Testing Library, jsdom — no server needed):
+
+```bash
+cd frontend && npm test
+```
+
+They cover the checkout address validation rules, money formatting + line-total summation (integer
+cents, no float drift), and the **checkout page's render states** — including a **regression test**
+for the first-load bug where the page got stuck on a skeleton on client-side navigation: the form
+must render on the first render once the PaymentIntent is ready, plus the loading / empty-cart /
+unauthenticated / error states (15 tests).
+
 ## API (so far)
 
 | Method | Route | Access | Purpose |
@@ -168,9 +208,14 @@ Stripe account via `npm test` (20 tests).
 | PATCH | `/cart/items/:productId` | authenticated | Set absolute quantity for a line |
 | DELETE | `/cart/items/:productId` | authenticated | Remove a line |
 | DELETE | `/cart` | authenticated | Clear the cart |
-| POST | `/orders` | authenticated | Checkout: create an order from the cart (transactional) |
+| POST | `/orders` | authenticated | Mock checkout: create an order from the cart (transactional; retained, exercises rollback tests) |
 | GET | `/orders` | authenticated | Current user's order history |
 | GET | `/orders/:id` | authenticated | One of the user's own orders (404 otherwise) |
+| POST | `/payments/payment-intent` | authenticated | Create a PaymentIntent from the cart (embedded checkout); amount computed server-side |
+| GET | `/payments/payment-intent/:id` | authenticated | Reconcile a PaymentIntent → its order once fulfilled (idempotent) |
+| POST | `/payments/checkout-session` | authenticated | *(Legacy hosted Checkout)* create a Checkout Session from the cart |
+| GET | `/payments/checkout-session/:id` | authenticated | *(Legacy)* reconcile a Checkout Session → its order |
+| POST | `/payments/webhook` | public (signed) | Stripe webhook: `payment_intent.succeeded` / `checkout.session.completed` → fulfil |
 | GET | `/admin/products` | admin only | All products incl. inactive (`search`, `page`, `pageSize`) |
 | POST | `/admin/products` | admin only | Create a product (409 on duplicate SKU) |
 | PATCH | `/admin/products/:id` | admin only | Edit a product (SKU immutable) |

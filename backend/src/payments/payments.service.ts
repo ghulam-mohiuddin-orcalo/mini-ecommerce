@@ -220,7 +220,13 @@ export class PaymentsService {
         ? session.payment_intent
         : (session.payment_intent?.id ?? session.id);
 
-    const order = await this.orders.fulfillStripeCheckout({ sessionId: session.id, userId, paymentRef });
+    const order = await this.orders.fulfillStripeCheckout({
+      sessionId: session.id,
+      userId,
+      paymentRef,
+      // Assert the order total matches what Stripe actually charged (fail safe on mismatch).
+      expectedTotalCents: session.amount_total ?? undefined,
+    });
     this.logger.log(`Fulfilled Stripe session ${session.id} → order ${order.id}`);
     return order;
   }
@@ -268,6 +274,8 @@ export class PaymentsService {
       sessionId: intent.id,
       userId,
       paymentRef: intent.id,
+      // Assert the order total matches the amount Stripe authorized (fail safe on mismatch).
+      expectedTotalCents: intent.amount,
     });
     this.logger.log(`Fulfilled Stripe PaymentIntent ${intent.id} → order ${order.id}`);
     return order;

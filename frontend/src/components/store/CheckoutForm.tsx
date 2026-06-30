@@ -13,6 +13,13 @@ import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { formatPrice } from '@/lib/format';
 import { usePaymentIntentStatus } from '@/lib/hooks/usePayments';
+import {
+  EMPTY_ADDRESS,
+  toStripeAddress,
+  validateAddress,
+  type Address,
+  type AddressErrors,
+} from '@/lib/checkout-validation';
 import type { Cart } from '@/lib/types';
 
 /** ISO 3166-1 alpha-2 codes — Stripe's `address.country` expects the 2-letter code. */
@@ -34,66 +41,6 @@ const COUNTRIES: { code: string; name: string }[] = [
   { code: 'IN', name: 'India' },
   { code: 'PK', name: 'Pakistan' },
 ];
-
-interface Address {
-  fullName: string;
-  email: string;
-  phone: string;
-  country: string;
-  state: string;
-  city: string;
-  postal: string;
-  line1: string;
-  line2: string;
-}
-
-type AddressErrors = Partial<Record<keyof Address, string>>;
-
-const EMPTY_ADDRESS: Address = {
-  fullName: '',
-  email: '',
-  phone: '',
-  country: '',
-  state: '',
-  city: '',
-  postal: '',
-  line1: '',
-  line2: '',
-};
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[+()\-\s\d]{7,20}$/;
-const POSTAL_RE = /^[A-Za-z0-9 \-]{3,12}$/;
-
-/** Pure, server-mirrored-UX validation. `requireContact` is false for billing (email/phone optional). */
-function validateAddress(a: Address, requireContact: boolean): AddressErrors {
-  const e: AddressErrors = {};
-  if (!a.fullName.trim()) e.fullName = 'Full name is required.';
-  if (requireContact) {
-    if (!a.email.trim()) e.email = 'Email is required.';
-    else if (!EMAIL_RE.test(a.email.trim())) e.email = 'Enter a valid email address.';
-    if (!a.phone.trim()) e.phone = 'Phone number is required.';
-    else if (!PHONE_RE.test(a.phone.trim())) e.phone = 'Enter a valid phone number.';
-  }
-  if (!a.country) e.country = 'Select a country.';
-  if (!a.state.trim()) e.state = 'State/Province is required.';
-  if (!a.city.trim()) e.city = 'City is required.';
-  if (!a.postal.trim()) e.postal = 'Postal code is required.';
-  else if (!POSTAL_RE.test(a.postal.trim())) e.postal = 'Enter a valid postal code.';
-  if (!a.line1.trim()) e.line1 = 'Address line 1 is required.';
-  return e;
-}
-
-function toStripeAddress(a: Address) {
-  return {
-    line1: a.line1.trim(),
-    line2: a.line2.trim() || undefined,
-    city: a.city.trim(),
-    state: a.state.trim(),
-    postal_code: a.postal.trim(),
-    country: a.country,
-  };
-}
 
 /**
  * The embedded checkout form. Rendered inside a Stripe <Elements> provider, so it can read the
@@ -129,21 +76,26 @@ export function CheckoutForm({
 
   const status = usePaymentIntentStatus(confirmedId);
 
-  // Once the order is fulfilled, refresh caches and go to the confirmation page.
+  // Once the order is fulfilled, refresh caches and go to the confirmation page. If reconciliation
+  // fails terminally (e.g. the server rejects the order because the cart total changed after the
+  // payment was authorized — the amount-integrity guard), surface it instead of spinning forever.
   useEffect(() => {
+    if (!confirmedId) return;
     const data = status.data;
-    if (!data) return;
-    if (data.status === 'complete' && data.orderId) {
+    if (data?.status === 'complete' && data.orderId) {
       void qc.invalidateQueries({ queryKey: ['cart'] });
       void qc.invalidateQueries({ queryKey: ['orders'] });
       void qc.invalidateQueries({ queryKey: ['recommendations'] });
       router.push(`/orders/${data.orderId}?placed=1`);
-    } else if (data.status === 'expired') {
-      setPaymentError('We could not confirm your payment. Please try again.');
+    } else if (data?.status === 'expired' || status.isError) {
+      setPaymentError(
+        'Your payment was received but the order could not be confirmed. No order was placed — ' +
+          'please review your cart and try again, or contact support.',
+      );
       setSubmitting(false);
       setConfirmedId(null);
     }
-  }, [status.data, qc, router]);
+  }, [confirmedId, status.data, status.isError, qc, router]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

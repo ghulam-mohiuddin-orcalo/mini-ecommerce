@@ -102,8 +102,20 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.2fr_1fr]">
         <section id="analytics" className="scroll-mt-6 rounded-xl border border-line bg-surface p-5 shadow-[var(--shadow-card)]">
-          <h2 className="mb-4 text-[15px] font-extrabold tracking-tight text-ink">Orders by status</h2>
-          <div className="h-56 w-full">
+          <h2 id="orders-by-status" className="mb-4 text-[15px] font-extrabold tracking-tight text-ink">Orders by status</h2>
+          {/* Accessible equivalent of the SVG chart for screen readers (the chart itself is decorative). */}
+          <table className="sr-only">
+            <caption>Orders by status</caption>
+            <thead>
+              <tr><th scope="col">Status</th><th scope="col">Orders</th></tr>
+            </thead>
+            <tbody>
+              {chartData.map((d) => (
+                <tr key={d.status}><th scope="row">{d.status}</th><td>{d.count}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="h-56 w-full" aria-hidden="true">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />

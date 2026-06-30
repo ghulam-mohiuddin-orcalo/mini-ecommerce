@@ -91,9 +91,15 @@ export function usePaymentIntentStatus(paymentIntentId: string | null) {
     queryFn: () =>
       apiFetch<SessionStatusResult>(`/payments/payment-intent/${paymentIntentId}`),
     enabled: Boolean(paymentIntentId),
+    retry: 1,
     refetchInterval: (query) => {
+      // Stop polling once terminal: order created, payment expired, or a terminal server error
+      // (e.g. amount-integrity rejection) — otherwise we'd hammer a permanently-failing endpoint.
       const status = query.state.data?.status;
-      return status === 'complete' || status === 'expired' ? false : 1500;
+      if (status === 'complete' || status === 'expired' || query.state.status === 'error') {
+        return false;
+      }
+      return 1500;
     },
   });
 }
