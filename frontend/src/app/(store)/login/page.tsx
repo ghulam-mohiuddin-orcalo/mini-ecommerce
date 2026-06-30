@@ -61,7 +61,15 @@ export default function LoginPage() {
               <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="password" className="text-sm font-semibold text-ink">Password</label>
+              <div className="flex items-baseline justify-between gap-2">
+                <label htmlFor="password" className="text-sm font-semibold text-ink">Password</label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-semibold text-brand-600 dark:text-brand-300 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
 

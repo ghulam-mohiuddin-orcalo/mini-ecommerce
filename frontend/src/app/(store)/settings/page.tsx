@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -9,9 +9,13 @@ import { Toggle } from '@/components/ui/Toggle';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/States';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/cn';
+import { ApiError } from '@/lib/api';
 import { useMe, useLogout } from '@/lib/hooks/useAuth';
 import { usePreferences, type ThemePreference } from '@/lib/hooks/usePreferences';
+import { useChangePassword, useForgotPassword } from '@/lib/hooks/usePasswordReset';
+import type { User } from '@/lib/types';
 
 const THEMES: { value: ThemePreference; icon: IconName; label: string }[] = [
   { value: 'light', icon: 'sun', label: 'Light' },
@@ -66,38 +70,13 @@ export default function SettingsPage() {
     );
   }
 
-  return <Shell><SettingsContent /></Shell>;
+  return <Shell><SettingsContent user={user} /></Shell>;
 }
 
-function SettingsContent() {
+function SettingsContent({ user }: { user: User }) {
   const router = useRouter();
   const logout = useLogout();
   const { prefs, setTheme, setNotification, setPrivacy } = usePreferences();
-
-  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
-  const [msg, setMsg] = useState<{ kind: 'error' | 'info'; text: string } | null>(null);
-  const score = passwordScore(pw.next);
-
-  const onUpdatePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pw.current || !pw.next || !pw.confirm) {
-      setMsg({ kind: 'error', text: 'Please fill in all three fields.' });
-      return;
-    }
-    if (pw.next.length < 8) {
-      setMsg({ kind: 'error', text: 'Your new password must be at least 8 characters.' });
-      return;
-    }
-    if (pw.next !== pw.confirm) {
-      setMsg({ kind: 'error', text: 'New password and confirmation don’t match.' });
-      return;
-    }
-    setMsg({
-      kind: 'info',
-      text: 'Validated — password changes aren’t connected to a backend in this demo build.',
-    });
-    setPw({ current: '', next: '', confirm: '' });
-  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -206,73 +185,7 @@ function SettingsContent() {
 
       {/* Security */}
       <Section icon="lock" title="Security" description="Update the password for your account.">
-        <p className="mb-4 flex items-start gap-2 rounded-lg bg-paper-2 px-3.5 py-2.5 text-xs text-ink-soft">
-          <Icon name="alert-triangle" size={14} className="mt-0.5 shrink-0 text-muted" />
-          Demo build — password changes are validated client-side but not yet connected to a backend,
-          so nothing is saved.
-        </p>
-        <form onSubmit={onUpdatePassword} className="flex max-w-md flex-col gap-4">
-          <PasswordField
-            id="current-password"
-            label="Current password"
-            autoComplete="current-password"
-            value={pw.current}
-            onChange={(v) => setPw((s) => ({ ...s, current: v }))}
-          />
-          <div>
-            <PasswordField
-              id="new-password"
-              label="New password"
-              autoComplete="new-password"
-              value={pw.next}
-              onChange={(v) => setPw((s) => ({ ...s, next: v }))}
-            />
-            {pw.next && (
-              <div className="mt-2">
-                <div className="flex gap-1.5" aria-hidden="true">
-                  {[0, 1, 2, 3].map((i) => (
-                    <span
-                      key={i}
-                      className={cn(
-                        'h-1.5 flex-1 rounded-full transition-colors',
-                        i < score ? STRENGTH[score].color : 'bg-line',
-                      )}
-                    />
-                  ))}
-                </div>
-                <p className={cn('mt-1.5 text-xs font-semibold', STRENGTH[score].text)}>
-                  Password strength: {STRENGTH[score].label}
-                </p>
-              </div>
-            )}
-          </div>
-          <PasswordField
-            id="confirm-password"
-            label="Confirm new password"
-            autoComplete="new-password"
-            value={pw.confirm}
-            onChange={(v) => setPw((s) => ({ ...s, confirm: v }))}
-          />
-
-          {msg && (
-            <p
-              role={msg.kind === 'error' ? 'alert' : 'status'}
-              className={cn(
-                'rounded-lg px-3 py-2 text-sm',
-                msg.kind === 'error'
-                  ? 'bg-[var(--color-danger-soft)] text-[var(--color-danger-ink)]'
-                  : 'bg-brand-50 text-brand-700 dark:text-brand-300',
-              )}
-            >
-              {msg.text}
-            </p>
-          )}
-
-          <Button type="submit" className="self-start">
-            <Icon name="lock" size={15} />
-            Update Password
-          </Button>
-        </form>
+        <ChangePasswordForm email={user.email} />
       </Section>
 
       {/* Danger zone */}
@@ -319,6 +232,140 @@ function SettingsContent() {
         </div>
       </section>
     </div>
+  );
+}
+
+function ChangePasswordForm({ email }: { email: string }) {
+  const { toast } = useToast();
+  const changePassword = useChangePassword();
+  const forgotPassword = useForgotPassword();
+
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+  const [error, setError] = useState<string | null>(null);
+  const score = passwordScore(pw.next);
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (pw.next.length < 8) {
+      setError('Your new password must be at least 8 characters.');
+      return;
+    }
+    if (pw.next !== pw.confirm) {
+      setError('New password and confirmation don’t match.');
+      return;
+    }
+    if (pw.next === pw.current) {
+      setError('Your new password must be different from your current one.');
+      return;
+    }
+
+    changePassword.mutate(
+      { currentPassword: pw.current, newPassword: pw.next },
+      {
+        onSuccess: () => {
+          toast({ variant: 'success', title: 'Password updated', description: 'Use it next time you sign in.' });
+          setPw({ current: '', next: '', confirm: '' });
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 401) {
+            setError('Your current password is incorrect.');
+            return;
+          }
+          setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
+        },
+      },
+    );
+  };
+
+  const onForgot = () => {
+    forgotPassword.mutate(email, {
+      onSuccess: () =>
+        toast({
+          variant: 'success',
+          title: 'Reset link sent',
+          description: 'If an account exists for your email, a reset link is on its way.',
+        }),
+      onError: () =>
+        toast({ variant: 'error', title: 'Could not send reset link', description: 'Please try again shortly.' }),
+    });
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="flex max-w-md flex-col gap-4">
+      <PasswordField
+        id="current-password"
+        label="Current password"
+        autoComplete="current-password"
+        value={pw.current}
+        onChange={(v) => setPw((s) => ({ ...s, current: v }))}
+        required
+      />
+      <div>
+        <PasswordField
+          id="new-password"
+          label="New password"
+          autoComplete="new-password"
+          value={pw.next}
+          onChange={(v) => setPw((s) => ({ ...s, next: v }))}
+          required
+          minLength={8}
+        />
+        {pw.next && (
+          <div className="mt-2">
+            <div className="flex gap-1.5" aria-hidden="true">
+              {[0, 1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    'h-1.5 flex-1 rounded-full transition-colors',
+                    i < score ? STRENGTH[score].color : 'bg-line',
+                  )}
+                />
+              ))}
+            </div>
+            <p className={cn('mt-1.5 text-xs font-semibold', STRENGTH[score].text)}>
+              Password strength: {STRENGTH[score].label}
+            </p>
+          </div>
+        )}
+      </div>
+      <PasswordField
+        id="confirm-password"
+        label="Confirm new password"
+        autoComplete="new-password"
+        value={pw.confirm}
+        onChange={(v) => setPw((s) => ({ ...s, confirm: v }))}
+        required
+        minLength={8}
+      />
+
+      {error && (
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-lg bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-ink)]"
+        >
+          <Icon name="alert-triangle" size={15} className="mt-0.5 shrink-0" />
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-4">
+        <Button type="submit" disabled={changePassword.isPending}>
+          <Icon name="lock" size={15} />
+          {changePassword.isPending ? 'Updating…' : 'Update Password'}
+        </Button>
+        <button
+          type="button"
+          onClick={onForgot}
+          disabled={forgotPassword.isPending}
+          className="text-sm font-semibold text-brand-600 dark:text-brand-300 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {forgotPassword.isPending ? 'Sending reset link…' : 'Forgot your current password?'}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -382,12 +429,16 @@ function PasswordField({
   value,
   onChange,
   autoComplete,
+  required = false,
+  minLength,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   autoComplete: string;
+  required?: boolean;
+  minLength?: number;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -402,6 +453,8 @@ function PasswordField({
           autoComplete={autoComplete}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          required={required}
+          minLength={minLength}
           className={cn(fieldClasses, 'pr-11')}
         />
         <button

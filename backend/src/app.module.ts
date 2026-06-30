@@ -17,6 +17,9 @@ import { AdminModule } from './admin/admin.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { WishlistModule } from './wishlist/wishlist.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { AddressesModule } from './addresses/addresses.module';
+import { ArticlesModule } from './articles/articles.module';
+import { SiteContentModule } from './site-content/site-content.module';
 
 @Module({
   imports: [
@@ -39,6 +42,9 @@ import { ReviewsModule } from './reviews/reviews.module';
     RecommendationsModule,
     WishlistModule,
     ReviewsModule,
+    AddressesModule,
+    ArticlesModule,
+    SiteContentModule,
   ],
   controllers: [AppController],
   providers: [

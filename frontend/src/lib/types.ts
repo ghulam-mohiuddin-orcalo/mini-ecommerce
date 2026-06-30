@@ -195,6 +195,72 @@ export interface Paginated<T> {
   meta: PaginationMeta;
 }
 
+export interface Address {
+  id: string;
+  label: string;
+  fullName: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  postcode: string;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArticleCategoryRef {
+  slug: string;
+  name: string;
+}
+
+export interface ArticleCategoryWithCount extends ArticleCategoryRef {
+  articleCount: number;
+}
+
+export interface ArticleListItem {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  coverUrl: string;
+  author: string;
+  publishedAt: string | null;
+  category: ArticleCategoryRef | null;
+}
+
+export interface Article extends ArticleListItem {
+  body: string;
+  createdAt: string;
+}
+
+export interface FaqItem {
+  id: string;
+  question: string;
+  body: string;
+  position: number;
+}
+
+export interface FaqCategory {
+  id: string;
+  slug: string;
+  name: string;
+  position: number;
+  items: FaqItem[];
+}
+
+export interface ContentBlock {
+  key: string;
+  title: string;
+  body: string;
+  updatedAt: string;
+}
+
+export interface ContactAcknowledgement {
+  received: boolean;
+  message: string;
+}
+
 export type RecommendationStrategy =
   | 'PURCHASE_HISTORY'
   | 'CART'

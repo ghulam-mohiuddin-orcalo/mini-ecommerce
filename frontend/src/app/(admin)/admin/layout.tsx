@@ -46,6 +46,48 @@ const NAV: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: '/admin/articles',
+    label: 'Articles',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M4 4h11a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2z" />
+        <path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2" />
+        <path d="M8 8h5M8 12h5" />
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/faq',
+    label: 'FAQ',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3" />
+        <path d="M12 17h.01" />
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/content',
+    label: 'Content',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M7 9h10M7 13h10M7 17h6" />
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/contact',
+    label: 'Contact',
+    icon: (
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m4 7 8 6 8-6" />
+      </svg>
+    ),
+  },
 ];
 
 function isActive(href: string, pathname: string) {

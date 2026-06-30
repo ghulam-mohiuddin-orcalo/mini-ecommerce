@@ -30,14 +30,33 @@ export function useAdminProducts(params: { search?: string; page?: number }, ena
   });
 }
 
+export interface ProductImageInput {
+  url: string;
+  alt?: string;
+}
+
+export interface ProductVariantInput {
+  label: string;
+  color?: string;
+  size?: string;
+  priceCents: number;
+  stock: number;
+  sku: string;
+  position?: number;
+  isActive?: boolean;
+}
+
 export interface ProductInput {
   sku?: string;
   name: string;
   description: string;
   priceCents: number;
+  compareAtPriceCents?: number | null;
   imageUrl: string;
   category: string;
   stock: number;
+  images?: ProductImageInput[];
+  variants?: ProductVariantInput[];
 }
 
 function useInvalidateProducts() {
