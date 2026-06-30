@@ -13,9 +13,10 @@ coherent over complete**. Breadth that connects end-to-end beats depth in one co
 ## Stack (decided, do not change without updating this file)
 
 - **Backend:** NestJS 11 + TypeScript, Prisma + PostgreSQL.
-- **Frontend:** Next.js 15 (App Router) + TypeScript, Tailwind CSS v4 + Radix headless
-  primitives + our own design system (no off-the-shelf UI kit/theme).
-- **Server state:** TanStack Query. **Forms:** React Hook Form + Zod. **Charts:** Recharts.
+- **Frontend:** Next.js 15 (App Router) + TypeScript, Tailwind CSS v4 + our own design system
+  (no off-the-shelf UI kit/theme; classes composed via `cn()` = clsx + tailwind-merge).
+- **Server state:** TanStack Query. **Charts:** Recharts. **Forms:** plain React `useState`
+  with native HTML5 validation — there is **no form library** (no React Hook Form, no Zod).
 - **Auth:** JWT in an httpOnly cookie. Frontend reaches the API same-origin via a Next.js
   rewrite proxy (`/api/*` → `http://localhost:3001/*`).
 - **Payment:** mocked behind a swappable `PaymentService` interface (no real payments).
@@ -26,8 +27,8 @@ coherent over complete**. Breadth that connects end-to-end beats depth in one co
 
 - Business logic lives in **services**, never in controllers.
 - Use **DTOs + class-validator**; global `ValidationPipe({ whitelist, forbidNonWhitelisted,
-  transform })`. Validate on **both** client (Zod) and server (DTO) — the server is the only
-  trust boundary.
+  transform })`. The client validates for UX only (native HTML5 form validation); the
+  **server (DTO) is the only trust boundary** and re-validates everything.
 - **Never trust client data.** Order totals and stock changes are computed/applied
   **server-side only**, from authoritative DB values.
 - **Stock decrement is transactional + atomic** (conditional decrement inside a Prisma
@@ -39,6 +40,19 @@ coherent over complete**. Breadth that connects end-to-end beats depth in one co
 - Consistent error shape via a global exception filter; correct HTTP status codes; never leak
   stack traces to clients.
 - **No `any`.** Do not disable TypeScript. Keep files modular and components reusable.
+
+## Quality gates
+
+There is **no committed ESLint or Prettier configuration** in this repo (the `lint` scripts and
+the stray `eslint-disable` comments are vestigial — no config file or installed linter backs
+them). Do **not** assume ESLint/Prettier exists, and do not add them without updating this file.
+The authoritative gates are TypeScript compilation, the build, and the Jest suites:
+
+- **Backend:** `npm run build` (TypeScript compile via `nest build`) · `npm test` (Jest unit) ·
+  `npm run test:e2e` (Jest + Supertest, only against a `*test*` database).
+- **Frontend:** `npm run typecheck` (`tsc --noEmit`) · `npm run build` (`next build`).
+- "Done" means a clean type-check + build + green Jest suites, **verified at runtime** (boot the
+  server and exercise it), not merely a successful compile.
 
 ## Layout
 
