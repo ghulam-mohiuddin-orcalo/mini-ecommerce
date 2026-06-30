@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { VerdantMark } from '@/components/store/VerdantLogo';
 import { cn } from '@/lib/cn';
 import { useMe, useLogout } from '@/lib/hooks/useAuth';
 
@@ -130,11 +131,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Desktop sidebar */}
       <aside className="sticky top-0 hidden h-screen flex-col gap-6 border-r border-line bg-surface p-4 lg:flex">
         <Link href="/admin" className="flex items-center gap-2.5 px-1.5 pt-2">
-          <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-brand-600 text-sm font-extrabold text-white">
-            P
-          </span>
+          <VerdantMark className="h-[30px] w-[30px] text-white" iconClassName="h-[17px] w-[17px]" />
           <span className="flex flex-col leading-tight">
-            <span className="text-sm font-bold tracking-tight text-ink">Pine &amp; Parcel</span>
+            <span className="text-sm font-bold tracking-tight text-ink">Verdant</span>
             <span className="text-[11px] font-semibold text-muted">Admin</span>
           </span>
         </Link>
@@ -191,9 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-line bg-surface lg:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/admin" className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-brand-600 text-sm font-extrabold text-white">
-              P
-            </span>
+            <VerdantMark className="h-8 w-8 text-white" iconClassName="h-[18px] w-[18px]" />
             <span className="font-bold tracking-tight text-ink">Admin</span>
           </Link>
           <div className="flex items-center gap-3">

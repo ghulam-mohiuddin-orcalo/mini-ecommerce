@@ -86,7 +86,7 @@ function SettingsContent({ user }: { user: User }) {
       </div>
 
       {/* Appearance */}
-      <Section icon="sun" title="Appearance" description="Choose how Pine & Parcel looks to you.">
+      <Section icon="sun" title="Appearance" description="Choose how Verdant looks to you.">
         <div role="radiogroup" aria-label="Appearance" className="grid grid-cols-3 gap-3">
           {THEMES.map((t) => {
             const active = prefs.theme === t.value;
@@ -473,3 +473,4 @@ function PasswordField({
 function Shell({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">{children}</div>;
 }
+

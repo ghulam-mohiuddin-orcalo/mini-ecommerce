@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
+import { VerdantMark } from '@/components/store/VerdantLogo';
 import { useForgotPassword } from '@/lib/hooks/usePasswordReset';
 
 const GENERIC_MESSAGE =
@@ -46,10 +47,8 @@ export default function ForgotPasswordPage() {
           <div aria-hidden="true" className="pp-veil absolute inset-0" />
           <div aria-hidden="true" className="pp-glow absolute inset-0" />
           <div className="relative flex items-center gap-2.5">
-            <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-white/15 text-sm font-extrabold text-white">
-              P
-            </span>
-            <span className="font-serif text-[17px] font-semibold text-white">Pine &amp; Parcel</span>
+            <VerdantMark className="h-[30px] w-[30px] bg-white/15 text-white" iconClassName="h-[17px] w-[17px]" />
+            <span className="font-serif text-[17px] font-semibold text-white">Verdant</span>
           </div>
           <div className="relative">
             <h2 className="font-serif text-[26px] font-medium leading-tight tracking-tight text-white">
@@ -137,3 +136,4 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
+

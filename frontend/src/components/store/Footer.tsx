@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { VerdantLogo } from '@/components/store/VerdantLogo';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError } from '@/lib/api';
 import { useCategories } from '@/lib/hooks/useProducts';
@@ -137,7 +138,7 @@ export function Footer() {
         <div className="flex flex-col gap-6 border-b border-line pb-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-md">
             <h2 className="font-serif text-2xl font-medium tracking-tight text-ink">
-              Join the Pine &amp; Parcel list
+              Join the Verdant list
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
               Occasional dispatches on new arrivals and the makers behind them. No noise.
@@ -149,14 +150,7 @@ export function Footer() {
         {/* Columns */}
         <div className="mt-10 grid grid-cols-2 gap-8 sm:grid-cols-4">
           <div className="col-span-2 sm:col-span-1">
-            <Link href="/" className="flex items-center gap-2.5">
-              <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-brand-600 text-[15px] font-extrabold text-white">
-                P
-              </span>
-              <span className="font-serif text-[18px] font-semibold tracking-tight text-ink">
-                Pine &amp; Parcel
-              </span>
-            </Link>
+            <VerdantLogo />
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-muted">
               A small, coherent storefront of thoughtfully made goods.
             </p>
@@ -185,7 +179,7 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">
-            © {new Date().getFullYear()} Pine &amp; Parcel — a mini e-commerce demo.
+            © {new Date().getFullYear()} Verdant — a mini e-commerce demo.
           </p>
           <ul className="flex flex-wrap items-center gap-2" aria-hidden="true">
             {PAYMENT_MARKS.map((mark) => (
@@ -202,3 +196,4 @@ export function Footer() {
     </footer>
   );
 }
+

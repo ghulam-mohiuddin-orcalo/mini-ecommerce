@@ -23,7 +23,7 @@ const stripePromise = getStripe();
 /**
  * Stripe Elements appearance — a third-party iframe that cannot read our CSS variables, so the
  * palette is supplied as literals here (the one place hard-coded colors are unavoidable). Tuned to
- * the Pine & Parcel surfaces for both themes; `theme` swaps base styling, variables refine it.
+ * the Verdant surfaces for both themes; `theme` swaps base styling, variables refine it.
  */
 function appearanceFor(theme: 'light' | 'dark'): Appearance {
   const dark = theme === 'dark';
@@ -193,3 +193,4 @@ function CheckoutSkeleton() {
     </div>
   );
 }
+

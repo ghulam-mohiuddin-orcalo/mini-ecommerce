@@ -10,7 +10,12 @@ export interface BackToTopProps {
   className?: string;
 }
 
-/** Fixed scroll-to-top control that reveals itself past a scroll threshold. */
+/**
+ * Fixed scroll-to-top control — a 1:1 port of the Verdant reference: a rounded-
+ * square glass button bottom-right that fades + lifts away below the threshold.
+ * Appearance/hover/focus live in the `v-totop` class (globals.css); React only
+ * toggles `data-visible` and a11y state.
+ */
 export function BackToTop({ threshold = 400, className }: BackToTopProps) {
   const [visible, setVisible] = useState(false);
 
@@ -33,16 +38,12 @@ export function BackToTop({ threshold = 400, className }: BackToTopProps) {
       type="button"
       onClick={toTop}
       aria-label="Back to top"
+      data-visible={visible}
       tabIndex={visible ? 0 : -1}
       aria-hidden={!visible}
-      className={cn(
-        'fixed bottom-6 right-6 z-40 grid h-11 w-11 place-items-center rounded-full border border-line bg-surface text-brand-600 shadow-[var(--shadow-panel)] transition-all duration-200 dark:text-brand-300',
-        'hover:-translate-y-0.5 hover:bg-paper-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper motion-reduce:transition-none',
-        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0',
-        className,
-      )}
+      className={cn('v-totop', className)}
     >
-      <Icon name="arrow-up" size={18} />
+      <Icon name="chevron-up" size={20} />
     </button>
   );
 }

@@ -25,7 +25,7 @@ export function ContentPage({
 
   // Keep the document title in sync with the loaded CMS block (basic SEO for a client page).
   useEffect(() => {
-    if (data?.title) document.title = `${data.title} — Pine & Parcel`;
+    if (data?.title) document.title = `${data.title} — Verdant`;
   }, [data?.title]);
 
   return (
@@ -69,3 +69,4 @@ export function ContentPage({
     </div>
   );
 }
+

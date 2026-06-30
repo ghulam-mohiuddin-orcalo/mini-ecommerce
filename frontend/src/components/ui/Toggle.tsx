@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/cn';
 
-/** Accessible on/off switch (ARIA `switch`), styled to the Pine & Parcel system. */
+/** Accessible on/off switch (ARIA `switch`), styled to the Verdant system. */
 export function Toggle({
   checked,
   onChange,
@@ -42,3 +42,4 @@ export function Toggle({
     </button>
   );
 }
+

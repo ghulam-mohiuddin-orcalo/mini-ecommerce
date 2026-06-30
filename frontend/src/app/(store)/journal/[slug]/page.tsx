@@ -24,7 +24,7 @@ export default function ArticleDetailPage() {
 
   // Sync the document title to the loaded article (basic SEO for a client page).
   useEffect(() => {
-    if (article?.title) document.title = `${article.title} — Pine & Parcel`;
+    if (article?.title) document.title = `${article.title} — Verdant`;
   }, [article?.title]);
 
   return (
@@ -122,3 +122,4 @@ export default function ArticleDetailPage() {
     </div>
   );
 }
+

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { VerdantMark } from '@/components/store/VerdantLogo';
 import { useSignup } from '@/lib/hooks/useAuth';
 import { ApiError } from '@/lib/api';
 
@@ -36,10 +37,8 @@ export default function SignupPage() {
           <div aria-hidden="true" className="pp-veil absolute inset-0" />
           <div aria-hidden="true" className="pp-glow absolute inset-0" />
           <div className="relative flex items-center gap-2.5">
-            <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-white/15 text-sm font-extrabold text-white">
-              P
-            </span>
-            <span className="font-serif text-[17px] font-semibold text-white">Pine &amp; Parcel</span>
+            <VerdantMark className="h-[30px] w-[30px] bg-white/15 text-white" iconClassName="h-[17px] w-[17px]" />
+            <span className="font-serif text-[17px] font-semibold text-white">Verdant</span>
           </div>
           <div className="relative">
             <h2 className="font-serif text-[26px] font-medium leading-tight tracking-tight text-white">
@@ -54,7 +53,7 @@ export default function SignupPage() {
         {/* Form */}
         <form onSubmit={onSubmit} className="flex flex-col bg-surface p-7">
           <h1 className="text-lg font-extrabold tracking-tight text-ink">Create your account</h1>
-          <p className="mt-1.5 text-sm text-muted">Join Pine &amp; Parcel — it takes a moment.</p>
+          <p className="mt-1.5 text-sm text-muted">Join Verdant — it takes a moment.</p>
 
           <div className="mt-5 flex flex-col gap-3.5">
             <div className="flex flex-col gap-1.5">
@@ -91,3 +90,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

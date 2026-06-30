@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Pine & Parcel — Mini Store',
+  title: 'Verdant — Mini Store',
   description: 'A small, coherent e-commerce storefront and admin panel.',
 };
 
@@ -37,3 +37,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
