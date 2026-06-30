@@ -31,6 +31,25 @@ export const DEFAULT_PREFERENCES: Preferences = {
 
 const STORAGE_KEY = 'pp:preferences';
 
+type ResolvedTheme = 'light' | 'dark';
+
+/** Resolve a theme choice to a concrete appearance, mirroring the pre-paint bootstrap script. */
+function resolveTheme(theme: ThemePreference): ResolvedTheme {
+  if (theme === 'light' || theme === 'dark') return theme;
+  return typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+/** Apply the resolved theme to the document (never the literal 'system'). */
+function applyTheme(theme: ThemePreference): ResolvedTheme {
+  const resolved = resolveTheme(theme);
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.style.colorScheme = resolved;
+  return resolved;
+}
+
 function load(): Preferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -50,14 +69,16 @@ function load(): Preferences {
 export function usePreferences() {
   const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFERENCES);
   const [hydrated, setHydrated] = useState(false);
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
 
   useEffect(() => {
     setPrefs(load());
     setHydrated(true);
   }, []);
 
-  // Persist + reflect the chosen theme on the document (kept as a saved preference; the app's
-  // Linen & Pine palette is light by design, so this records intent without a new visual style).
+  // Persist + reflect the chosen theme on the document. The applied attribute is always a
+  // concrete 'light'|'dark' (resolving 'system' via matchMedia), consistent with the pre-paint
+  // bootstrap script so there is no flash or mismatch.
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -65,8 +86,17 @@ export function usePreferences() {
     } catch {
       /* ignore quota / privacy-mode errors */
     }
-    document.documentElement.dataset.theme = prefs.theme;
+    setResolvedTheme(applyTheme(prefs.theme));
   }, [prefs, hydrated]);
+
+  // While following the OS ('system'), track live changes to the OS color scheme.
+  useEffect(() => {
+    if (!hydrated || prefs.theme !== 'system') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setResolvedTheme(applyTheme('system'));
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [prefs.theme, hydrated]);
 
   const setTheme = useCallback((theme: ThemePreference) => setPrefs((p) => ({ ...p, theme })), []);
 
@@ -82,5 +112,5 @@ export function usePreferences() {
     [],
   );
 
-  return { prefs, hydrated, setTheme, setNotification, setPrivacy };
+  return { prefs, hydrated, resolvedTheme, setTheme, setNotification, setPrivacy };
 }

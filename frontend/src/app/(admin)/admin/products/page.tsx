@@ -81,7 +81,7 @@ export default function AdminProductsPage() {
           <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-[var(--shadow-card)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-[#f7f3ec] text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
+                <tr className="border-b border-line bg-paper-2 text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
                   <th className="px-[18px] py-3 font-bold">Product</th>
                   <th className="px-[18px] py-3 font-bold">SKU</th>
                   <th className="px-[18px] py-3 font-bold">Category</th>
@@ -95,7 +95,7 @@ export default function AdminProductsPage() {
                 {data.data.map((p) => (
                   <tr
                     key={p.id}
-                    className={cn('transition-colors hover:bg-[#fbf9f4]', !p.isActive && 'opacity-55')}
+                    className={cn('transition-colors hover:bg-paper-2', !p.isActive && 'opacity-55')}
                   >
                     <td className="px-[18px] py-3">
                       <div className="flex items-center gap-3">
@@ -120,7 +120,7 @@ export default function AdminProductsPage() {
                             setEditing(p);
                             setCreating(false);
                           }}
-                          className="text-brand-600 hover:underline"
+                          className="text-brand-600 dark:text-brand-300 hover:underline"
                         >
                           Edit
                         </button>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { cn } from '@/lib/cn';
 import { useMe, useLogout } from '@/lib/hooks/useAuth';
 
@@ -107,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className={cn(
                   'flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm transition-colors',
                   active
-                    ? 'bg-brand-100 font-bold text-brand-700'
+                    ? 'bg-brand-100 font-bold text-brand-700 dark:text-brand-300'
                     : 'font-semibold text-ink-soft hover:bg-paper-2 hover:text-ink',
                 )}
               >
@@ -119,6 +120,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         <div className="mt-auto flex flex-col gap-2">
+          <div className="flex items-center justify-between rounded-xl bg-paper-2 px-3 py-2">
+            <span className="text-[11px] font-semibold text-muted">Appearance</span>
+            <ThemeToggle />
+          </div>
           <div className="flex items-center gap-2.5 rounded-xl bg-paper-2 p-3">
             <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-brand-600 text-[13px] font-bold text-white">
               {initials}
@@ -149,14 +154,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
             <span className="font-bold tracking-tight text-ink">Admin</span>
           </Link>
-          <button
-            type="button"
-            onClick={signOut}
-            disabled={logout.isPending}
-            className="text-sm font-semibold text-muted hover:text-ink disabled:opacity-50"
-          >
-            {logout.isPending ? 'Signing out…' : 'Sign out'}
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={logout.isPending}
+              className="text-sm font-semibold text-muted hover:text-ink disabled:opacity-50"
+            >
+              {logout.isPending ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
         </div>
         <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-3 text-sm">
           {NAV.map((item) => {
@@ -168,7 +176,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'whitespace-nowrap rounded-lg px-3 py-1.5 font-semibold transition-colors',
-                  active ? 'bg-brand-100 text-brand-700' : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
+                  active ? 'bg-brand-100 text-brand-700 dark:text-brand-300' : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
                 )}
               >
                 {item.label}

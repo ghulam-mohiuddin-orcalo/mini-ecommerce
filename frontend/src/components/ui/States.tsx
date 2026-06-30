@@ -28,7 +28,7 @@ export function EmptyState({
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-line bg-surface px-6 py-16 text-center shadow-[var(--shadow-card)]">
       <span
         aria-hidden="true"
-        className="grid h-15 w-15 place-items-center rounded-2xl bg-brand-50 text-brand-500"
+        className="grid h-15 w-15 place-items-center rounded-2xl bg-brand-50 text-brand-500 dark:text-brand-300"
       >
         {icon ?? <DefaultEmptyIcon />}
       </span>

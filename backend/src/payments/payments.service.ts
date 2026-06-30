@@ -13,6 +13,7 @@ import { OrdersService } from '../orders/orders.service';
 import { StripeService } from './stripe.service';
 import { CheckoutSessionResponseDto } from './dto/checkout-session-response.dto';
 import { SessionStatusResponseDto } from './dto/session-status-response.dto';
+import { PaymentIntentResponseDto } from './dto/payment-intent-response.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -85,6 +86,49 @@ export class PaymentsService {
   }
 
   /**
+   * Create a Stripe PaymentIntent from the authenticated user's cart for the embedded (in-app)
+   * Payment Element flow — no redirect. The amount is computed server-side from CURRENT database
+   * prices (the client never supplies prices); userId + cartId go in metadata so the success-poll
+   * and the `payment_intent.succeeded` webhook fulfil against the right cart/user. The PaymentIntent
+   * id later becomes the order's idempotency key (stored in the same unique column as the hosted
+   * flow's session id), so an order is created exactly once across poll + webhook.
+   */
+  async createPaymentIntent(userId: string): Promise<PaymentIntentResponseDto> {
+    const cart = await this.prisma.cart.findUnique({
+      where: { userId },
+      include: { items: { include: { product: true }, orderBy: { createdAt: 'asc' } } },
+    });
+    if (!cart || cart.items.length === 0) {
+      throw new BadRequestException('Your cart is empty');
+    }
+
+    // Friendly pre-checks + authoritative amount; fulfilment re-validates inside the transaction.
+    let amountCents = 0;
+    for (const item of cart.items) {
+      const p = item.product;
+      if (!p.isActive) {
+        throw new ConflictException(`"${p.name}" is no longer available`);
+      }
+      if (item.quantity > p.stock) {
+        throw new ConflictException(`Only ${p.stock} unit(s) of "${p.name}" are in stock`);
+      }
+      amountCents += p.priceCents * item.quantity; // DB price in minor units — never the client's
+    }
+
+    const intent = await this.stripe.createPaymentIntent({
+      amount: amountCents,
+      currency: this.currency,
+      automatic_payment_methods: { enabled: true },
+      metadata: { userId, cartId: cart.id },
+    });
+
+    if (!intent.client_secret) {
+      throw new ServiceUnavailableException('Stripe did not return a client secret');
+    }
+    return { clientSecret: intent.client_secret, paymentIntentId: intent.id, amountCents };
+  }
+
+  /**
    * Webhook entry point. Verifies the signature (invalid → 400, never processed), then on a
    * `checkout.session.completed` event fulfils the order. Business failures (empty cart,
    * out-of-stock at fulfilment) are acknowledged with 200 so Stripe doesn't retry forever —
@@ -106,20 +150,32 @@ export class PaymentsService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      try {
-        await this.fulfil(session);
-      } catch (e) {
-        if (e instanceof BadRequestException || e instanceof ConflictException) {
-          this.logger.error(
-            `Could not fulfil session ${session.id}: ${e.message}. ` +
-              'No order created; a production system would refund the payment here.',
-          );
-          return; // acknowledge (200) — retrying won't help a permanent validation failure
-        }
-        throw e; // transient/unexpected → 500 so Stripe retries
-      }
+      await this.acknowledgingBusinessFailures(session.id, () => this.fulfil(session));
+    } else if (event.type === 'payment_intent.succeeded') {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      await this.acknowledgingBusinessFailures(intent.id, () => this.fulfilIntent(intent));
     } else {
       this.logger.debug(`Ignoring unhandled Stripe event type: ${event.type}`);
+    }
+  }
+
+  /**
+   * Run a fulfilment, swallowing permanent business failures (empty cart / out-of-stock) with a
+   * 200 ack so Stripe stops retrying — a production system would refund here. Unexpected errors
+   * bubble up (500) so Stripe retries. Shared by both the session and PaymentIntent webhook paths.
+   */
+  private async acknowledgingBusinessFailures(ref: string, run: () => Promise<unknown>): Promise<void> {
+    try {
+      await run();
+    } catch (e) {
+      if (e instanceof BadRequestException || e instanceof ConflictException) {
+        this.logger.error(
+          `Could not fulfil ${ref}: ${e.message}. ` +
+            'No order created; a production system would refund the payment here.',
+        );
+        return; // acknowledge (200) — retrying won't help a permanent validation failure
+      }
+      throw e; // transient/unexpected → 500 so Stripe retries
     }
   }
 
@@ -166,6 +222,54 @@ export class PaymentsService {
 
     const order = await this.orders.fulfillStripeCheckout({ sessionId: session.id, userId, paymentRef });
     this.logger.log(`Fulfilled Stripe session ${session.id} → order ${order.id}`);
+    return order;
+  }
+
+  /**
+   * Success-page reconciliation for the embedded PaymentIntent flow — the mirror of
+   * `getSessionStatus`. Returns the order if the webhook already fulfilled it; otherwise asks
+   * Stripe directly and, if the PaymentIntent has succeeded, fulfils now (idempotent on the PI id).
+   * Makes the in-app flow reliable whether or not webhook forwarding is running locally.
+   */
+  async getPaymentIntentStatus(
+    userId: string,
+    paymentIntentId: string,
+  ): Promise<SessionStatusResponseDto> {
+    // The PI id is stored in the same unique idempotency column as the hosted session id.
+    const existing = await this.orders.findByStripeSession(userId, paymentIntentId);
+    if (existing) return { status: 'complete', orderId: existing.id };
+
+    const intent = await this.stripe.retrievePaymentIntent(paymentIntentId);
+    // Ownership guard: never act on a PaymentIntent that isn't this user's.
+    if (intent.metadata?.userId !== userId) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (intent.status === 'succeeded') {
+      const order = await this.fulfilIntent(intent);
+      return { status: 'complete', orderId: order?.id ?? null };
+    }
+    // `canceled` → terminal; everything else (processing, requires_action/payment_method) is pending.
+    return { status: intent.status === 'canceled' ? 'expired' : 'pending', orderId: null };
+  }
+
+  /** Fulfil a succeeded PaymentIntent via the orders transactional core (idempotent on the PI id). */
+  private async fulfilIntent(intent: Stripe.PaymentIntent) {
+    if (intent.status !== 'succeeded') {
+      this.logger.warn(`PaymentIntent ${intent.id} status=${intent.status}; skipping fulfilment.`);
+      return null;
+    }
+    const userId = intent.metadata?.userId;
+    if (!userId) {
+      this.logger.error(`PaymentIntent ${intent.id} has no userId metadata; cannot fulfil.`);
+      return null;
+    }
+    const order = await this.orders.fulfillStripeCheckout({
+      sessionId: intent.id,
+      userId,
+      paymentRef: intent.id,
+    });
+    this.logger.log(`Fulfilled Stripe PaymentIntent ${intent.id} → order ${order.id}`);
     return order;
   }
 }

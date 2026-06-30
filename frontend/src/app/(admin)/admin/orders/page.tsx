@@ -88,7 +88,7 @@ export default function AdminOrdersPage() {
           <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-[var(--shadow-card)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-[#f7f3ec] text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
+                <tr className="border-b border-line bg-paper-2 text-left text-[11px] font-bold uppercase tracking-[0.05em] text-muted">
                   <th className="px-[18px] py-3 font-bold">Order</th>
                   <th className="px-[18px] py-3 font-bold">Customer</th>
                   <th className="px-[18px] py-3 font-bold">Date</th>
@@ -162,11 +162,11 @@ function OrderRow({ order }: { order: AdminOrder }) {
 
   return (
     <Fragment>
-      <tr className="align-top transition-colors hover:bg-[#fbf9f4]">
+      <tr className="align-top transition-colors hover:bg-paper-2">
         <td className="px-[18px] py-3">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="font-bold tabular-nums text-brand-700 hover:underline"
+            className="font-bold tabular-nums text-brand-700 dark:text-brand-300 hover:underline"
             aria-expanded={open}
           >
             #{order.id.slice(-8)}
@@ -179,7 +179,7 @@ function OrderRow({ order }: { order: AdminOrder }) {
           <div className="flex items-center gap-2.5">
             <span
               aria-hidden="true"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-100 text-[11px] font-bold text-brand-700 dark:text-brand-300"
             >
               {initialsOf(order.customer.name)}
             </span>

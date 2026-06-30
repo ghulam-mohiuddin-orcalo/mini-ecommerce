@@ -70,7 +70,7 @@ export default function ProductDetailPage() {
         <ErrorState onRetry={() => void refetch()} />
       ) : product ? (
         <div className="grid grid-cols-1 gap-10 md:grid-cols-2">
-          <div className="overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-[#f0f5f2] to-[#dceae3]">
+          <div className="overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-brand-50 to-brand-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={product.imageUrl} alt={product.name} className="aspect-square w-full object-cover" />
           </div>
@@ -79,12 +79,12 @@ export default function ProductDetailPage() {
             <span className="text-xs font-bold uppercase tracking-[0.07em] text-muted">
               {product.category}
             </span>
-            <h1 className="mt-2 text-3xl font-extrabold leading-tight tracking-tight text-ink sm:text-[34px]">
+            <h1 className="mt-2 font-serif text-[32px] font-medium leading-tight tracking-tight text-ink sm:text-[38px]">
               {product.name}
             </h1>
 
             <div className="mt-4 flex flex-wrap items-center gap-3.5">
-              <span className="text-3xl font-extrabold tracking-tight text-brand-700">
+              <span className="text-3xl font-extrabold tracking-tight text-brand-700 dark:text-brand-300">
                 {formatPrice(product.priceCents)}
               </span>
               {outOfStock ? (

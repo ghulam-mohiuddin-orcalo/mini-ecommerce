@@ -23,7 +23,7 @@ const STRENGTH = [
   { label: 'Too weak', color: 'bg-[var(--color-danger)]', text: 'text-[var(--color-danger)]' },
   { label: 'Weak', color: 'bg-[var(--color-danger)]', text: 'text-[var(--color-danger)]' },
   { label: 'Fair', color: 'bg-[var(--color-warning)]', text: 'text-[var(--color-warning-ink)]' },
-  { label: 'Good', color: 'bg-brand-400', text: 'text-brand-600' },
+  { label: 'Good', color: 'bg-brand-400', text: 'text-brand-600 dark:text-brand-300' },
   { label: 'Strong', color: 'bg-[var(--color-success)]', text: 'text-[var(--color-success)]' },
 ];
 
@@ -102,7 +102,7 @@ function SettingsContent() {
   return (
     <div className="flex flex-col gap-6">
       <div className="pp-rise">
-        <h1 className="text-3xl font-extrabold tracking-tight text-ink">Settings</h1>
+        <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink">Settings</h1>
         <p className="mt-1.5 text-muted">Manage your appearance, notifications, privacy, and security.</p>
       </div>
 
@@ -121,11 +121,11 @@ function SettingsContent() {
                 className={cn(
                   'flex flex-col items-center gap-2 rounded-xl border p-4 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                   active
-                    ? 'border-brand-600 bg-brand-50 text-brand-700 ring-1 ring-brand-600'
+                    ? 'border-brand-600 bg-brand-50 text-brand-700 dark:text-brand-300 ring-1 ring-brand-600'
                     : 'border-line bg-surface text-ink-soft hover:bg-paper-2',
                 )}
               >
-                <Icon name={t.icon} size={20} className={active ? 'text-brand-600' : 'text-muted'} />
+                <Icon name={t.icon} size={20} className={active ? 'text-brand-600 dark:text-brand-300' : 'text-muted'} />
                 {t.label}
               </button>
             );
@@ -256,7 +256,7 @@ function SettingsContent() {
                 'rounded-lg px-3 py-2 text-sm',
                 msg.kind === 'error'
                   ? 'bg-[var(--color-danger-soft)] text-[var(--color-danger-ink)]'
-                  : 'bg-brand-50 text-brand-700',
+                  : 'bg-brand-50 text-brand-700 dark:text-brand-300',
               )}
             >
               {msg.text}
@@ -271,8 +271,8 @@ function SettingsContent() {
       </Section>
 
       {/* Danger zone */}
-      <section className="overflow-hidden rounded-2xl border border-[#eccabe] bg-[#fcf6f3] shadow-[var(--shadow-card)]">
-        <div className="flex items-center gap-3 border-b border-[#eccabe] px-6 py-4">
+      <section className="overflow-hidden rounded-2xl border border-[var(--color-danger)]/30 bg-[var(--color-danger-soft)] shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-3 border-b border-[var(--color-danger)]/30 px-6 py-4">
           <span className="grid h-10 w-10 place-items-center rounded-[10px] bg-[var(--color-danger-soft)] text-[var(--color-danger-ink)]" aria-hidden="true">
             <Icon name="alert-triangle" size={18} />
           </span>
@@ -331,7 +331,7 @@ function Section({
   return (
     <section className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-brand-50 text-brand-600" aria-hidden="true">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-brand-50 text-brand-600 dark:text-brand-300" aria-hidden="true">
           <Icon name={icon} size={18} />
         </span>
         <div>

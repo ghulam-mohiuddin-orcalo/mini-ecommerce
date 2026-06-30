@@ -96,7 +96,7 @@ export function AdminProductForm({
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             required
             rows={3}
-            className="w-full rounded-lg border border-[#d9d3c8] bg-field px-3.5 py-2.5 text-sm leading-relaxed text-ink transition placeholder:text-muted focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-[3px] focus:ring-brand-500/15"
+            className="w-full rounded-lg border border-line bg-field px-3.5 py-2.5 text-sm leading-relaxed text-ink transition placeholder:text-muted focus:border-brand-500 focus:bg-surface focus:outline-none focus:ring-[3px] focus:ring-brand-500/15"
           />
         </Field>
       </div>

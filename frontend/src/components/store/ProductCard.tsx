@@ -12,7 +12,7 @@ export function ProductCard({ product }: { product: Product }) {
       href={`/products/${product.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-card)] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lift)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-[#f0f5f2] to-[#dceae3]">
+      <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-brand-50 to-brand-100">
         {/* Plain img keeps us resilient (no remote-image config / offline failures break layout). */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -41,7 +41,7 @@ export function ProductCard({ product }: { product: Product }) {
         <p className="line-clamp-2 flex-1 text-[13px] leading-relaxed text-muted">
           {product.description}
         </p>
-        <p className="pt-2.5 text-lg font-extrabold tracking-tight text-brand-700">
+        <p className="pt-2.5 text-lg font-extrabold tracking-tight text-brand-700 dark:text-brand-300">
           {formatPrice(product.priceCents)}
         </p>
       </div>

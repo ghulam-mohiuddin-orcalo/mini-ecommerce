@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
 import { useMe, useLogout } from '@/lib/hooks/useAuth';
 import { useCart } from '@/lib/hooks/useCart';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { UserMenu } from './UserMenu';
 
 /** Storefront top navigation: shop link, cart with live count, and a consolidated profile menu. */
@@ -20,11 +21,11 @@ export function StoreHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-brand-600 text-[15px] font-extrabold text-white">
+        <Link href="/" className="group flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-brand-600 text-[15px] font-extrabold text-white shadow-[var(--shadow-btn)] transition-transform group-hover:-translate-y-0.5">
             P
           </span>
-          <span className="text-[17px] font-bold tracking-tight text-ink">Pine &amp; Parcel</span>
+          <span className="font-serif text-[19px] font-semibold tracking-tight text-ink">Pine &amp; Parcel</span>
         </Link>
 
         <nav className="flex items-center gap-1 text-sm">
@@ -83,6 +84,8 @@ export function StoreHeader() {
             )}
           </Link>
 
+          <ThemeToggle className="ml-1.5 hidden sm:inline-flex" />
+
           {user ? (
             <div className="pl-1.5">
               <UserMenu
@@ -95,7 +98,7 @@ export function StoreHeader() {
           ) : (
             <Link
               href="/login"
-              className="ml-1.5 rounded-lg bg-ink px-4 py-2 font-semibold text-white transition-opacity hover:opacity-90"
+              className="ml-1.5 rounded-lg bg-ink px-4 py-2 font-semibold text-paper transition-opacity hover:opacity-90"
             >
               Sign in
             </Link>

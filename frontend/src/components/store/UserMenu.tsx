@@ -302,7 +302,7 @@ export function UserMenu({
               <span
                 className={cn(
                   'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]',
-                  isAdmin ? 'bg-brand-100 text-brand-700' : 'bg-[#edeae3] text-[#6b665e]',
+                  isAdmin ? 'bg-brand-100 text-brand-700 dark:text-brand-300' : 'bg-paper-2 text-ink-soft',
                 )}
               >
                 {isAdmin ? 'Admin' : 'Customer'}
@@ -349,17 +349,17 @@ export function UserMenu({
                     onClick={() => close()}
                     className={cn(
                       rowBase,
-                      active ? 'bg-brand-50 text-brand-700' : 'text-ink-soft hover:bg-paper-2',
+                      active ? 'bg-brand-50 text-brand-700 dark:text-brand-300' : 'text-ink-soft hover:bg-paper-2',
                     )}
                   >
-                    <Icon name={item.icon} className={active ? 'text-brand-600' : 'text-muted'} />
+                    <Icon name={item.icon} className={active ? 'text-brand-600 dark:text-brand-300' : 'text-muted'} />
                     <span className="flex-1">{item.label}</span>
                     {item.href === '/cart' && cartCount > 0 && (
                       <span className="inline-grid min-w-[18px] place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
                         {cartCount}
                       </span>
                     )}
-                    {active && <Icon name="check" className="text-brand-600" />}
+                    {active && <Icon name="check" className="text-brand-600 dark:text-brand-300" />}
                   </Link>
                 );
               })}
