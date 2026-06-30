@@ -593,3 +593,167 @@ html[data-theme='dark'] {
     animation: none;
   }
 }
+
+/* ---- Hero + brand strip (reference port). ---- */
+@keyframes vRise {
+  from {
+    transform: translateY(26px);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes vFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-26px) rotate(6deg);
+  }
+}
+@keyframes vFloat2 {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(22px) rotate(-5deg);
+  }
+}
+@keyframes vMarquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.v-rise {
+  animation: vRise 0.8s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+.v-blob1 {
+  animation: vFloat 13s ease-in-out infinite;
+}
+.v-blob2 {
+  animation: vFloat2 16s ease-in-out infinite;
+}
+.v-float-card {
+  animation: vFloat 9s ease-in-out infinite;
+}
+.v-float2-card {
+  animation: vFloat2 11s ease-in-out infinite;
+}
+.v-marquee-track {
+  animation: vMarquee 32s linear infinite;
+}
+
+.v-hero-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 56px;
+  padding: 0 30px;
+  border: none;
+  border-radius: 15px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 14px 30px -12px color-mix(in oklab, var(--primary) 70%, transparent);
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.28s,
+    background 0.28s;
+}
+.v-hero-btn-primary:hover {
+  transform: translateY(-2px);
+  background: var(--primary2);
+  box-shadow: 0 20px 40px -14px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+.v-hero-btn-primary:active {
+  transform: translateY(0);
+}
+
+.v-hero-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 56px;
+  padding: 0 26px;
+  border: 1px solid var(--line2);
+  border-radius: 15px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    transform 0.28s,
+    border-color 0.28s,
+    background 0.28s;
+}
+.v-hero-btn-secondary:hover {
+  transform: translateY(-2px);
+  border-color: var(--ink);
+}
+
+.v-hero-grid {
+  position: relative;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 80px 28px 92px;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 56px;
+  align-items: center;
+}
+.v-hero-showcase {
+  position: relative;
+  height: 520px;
+}
+
+/* Responsive: the reference is a fixed-width desktop mock — scale it down
+ * gracefully (laptop → tablet → mobile) without breaking the composition. */
+@media (max-width: 1024px) {
+  .v-hero-grid {
+    padding: 64px 24px 68px;
+    gap: 44px;
+  }
+  .v-hero-showcase {
+    height: 480px;
+  }
+}
+@media (max-width: 920px) {
+  .v-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .v-hero-showcase {
+    height: 460px;
+  }
+}
+@media (max-width: 640px) {
+  .v-hero-grid {
+    padding: 44px 20px 48px;
+  }
+  .v-hero-showcase {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v-rise,
+  .v-blob1,
+  .v-blob2,
+  .v-float-card,
+  .v-float2-card,
+  .v-marquee-track {
+    animation: none;
+  }
+}
