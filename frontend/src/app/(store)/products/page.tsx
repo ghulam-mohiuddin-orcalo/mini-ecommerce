@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CatalogFilters } from '@/components/store/CatalogFilters';
 import { Pagination } from '@/components/store/Pagination';
 import { ProductGrid, ProductGridSkeleton } from '@/components/store/ProductGrid';
+import { Container } from '@/components/store/Container';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useCategories, useProducts } from '@/lib/hooks/useProducts';
@@ -26,6 +27,7 @@ function parseQuery(sp: URLSearchParams): ProductQuery {
     category: sp.get('category') ?? undefined,
     minPrice: num('minPrice'),
     maxPrice: num('maxPrice'),
+    minRating: num('minRating'),
     sort: sortRaw && VALID_SORTS.includes(sortRaw) ? sortRaw : 'newest',
     page: num('page') ?? 1,
     pageSize: 12,
@@ -41,21 +43,17 @@ function CatalogClient() {
   const { data, isLoading, isError, isFetching, refetch } = useProducts(query);
   const { data: categories = [] } = useCategories();
 
-  // Rating is a CLIENT-SIDE filter (the API has no rating param). It lives in the URL so the
-  // filtered view is shareable; we apply it to the returned page below.
-  const minRatingRaw = searchParams.get('minRating');
-  const minRating =
-    minRatingRaw && Number.isFinite(Number(minRatingRaw)) ? Number(minRatingRaw) : undefined;
+  const minRating = query.minRating;
 
   const writeParams = useCallback(
-    (next: ProductQuery & { minRating?: number }) => {
+    (next: ProductQuery) => {
       const usp = new URLSearchParams();
       if (next.search) usp.set('search', next.search);
       if (next.category) usp.set('category', next.category);
       if (next.minPrice !== undefined) usp.set('minPrice', String(next.minPrice));
       if (next.maxPrice !== undefined) usp.set('maxPrice', String(next.maxPrice));
-      if (next.sort && next.sort !== 'newest') usp.set('sort', next.sort);
       if (next.minRating !== undefined) usp.set('minRating', String(next.minRating));
+      if (next.sort && next.sort !== 'newest') usp.set('sort', next.sort);
       if (next.page && next.page > 1) usp.set('page', String(next.page));
       const qs = usp.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
@@ -65,16 +63,16 @@ function CatalogClient() {
 
   // Filter changes reset to page 1; pagination keeps the rest of the query.
   const updateFilters = useCallback(
-    (partial: Partial<ProductQuery>) => writeParams({ ...query, minRating, ...partial, page: 1 }),
-    [query, minRating, writeParams],
+    (partial: Partial<ProductQuery>) => writeParams({ ...query, ...partial, page: 1 }),
+    [query, writeParams],
   );
   const setRating = useCallback(
     (rating: number | undefined) => writeParams({ ...query, minRating: rating, page: 1 }),
     [query, writeParams],
   );
   const setPage = useCallback(
-    (page: number) => writeParams({ ...query, minRating, page }),
-    [query, minRating, writeParams],
+    (page: number) => writeParams({ ...query, page }),
+    [query, writeParams],
   );
   const clearAll = useCallback(() => router.replace(pathname, { scroll: false }), [pathname, router]);
 
@@ -87,13 +85,12 @@ function CatalogClient() {
   );
   const meta = data?.meta;
 
-  // Apply the client-side rating filter to the server-returned page.
-  const visibleProducts = (data?.data ?? []).filter(
-    (p) => minRating === undefined || p.ratingAvg >= minRating,
-  );
+  // Rating is filtered server-side (see useProducts → /products?minRating), so the returned
+  // page is already correct and paginated across the whole catalog.
+  const products = data?.data ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <Container className="py-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink sm:text-[38px]">Catalog</h1>
@@ -124,12 +121,12 @@ function CatalogClient() {
             <ProductGridSkeleton count={6} />
           ) : isError ? (
             <ErrorState onRetry={() => void refetch()} />
-          ) : visibleProducts.length === 0 ? (
+          ) : products.length === 0 ? (
             <EmptyState
               title="No products match your filters"
               description={
                 minRating !== undefined
-                  ? 'No products on this page meet the rating filter. Try lowering it or clearing filters.'
+                  ? 'No products meet that rating threshold. Try lowering it or clearing filters.'
                   : 'Try widening your price range or clearing the search.'
               }
               action={
@@ -142,7 +139,7 @@ function CatalogClient() {
             />
           ) : (
             <div className="flex flex-col gap-8">
-              <ProductGrid products={visibleProducts} />
+              <ProductGrid products={products} />
               {meta && (
                 <Pagination page={meta.page} totalPages={meta.totalPages} onPageChange={setPage} />
               )}
@@ -150,7 +147,7 @@ function CatalogClient() {
           )}
         </section>
       </div>
-    </div>
+    </Container>
   );
 }
 
@@ -194,7 +191,7 @@ function SortToggle({
 
 export default function ProductsPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6"><ProductGridSkeleton /></div>}>
+    <Suspense fallback={<Container className="py-8"><ProductGridSkeleton /></Container>}>
       <CatalogClient />
     </Suspense>
   );

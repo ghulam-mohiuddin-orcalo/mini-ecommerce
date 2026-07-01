@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { OrderStatus } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -24,7 +25,9 @@ describe('Products (e2e)', () => {
     prisma = app.get(PrismaService);
 
     await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany();
     await prisma.cartItem.deleteMany();
+    await prisma.user.deleteMany();
     await prisma.product.deleteMany();
     await prisma.product.createMany({
       data: [
@@ -37,10 +40,33 @@ describe('Products (e2e)', () => {
     });
     const hidden = await prisma.product.findUniqueOrThrow({ where: { sku: 'T5' } });
     hiddenId = hidden.id;
+
+    // Seed reviews so products have distinct average ratings for the minRating filter:
+    //   Alpha = 5.0, Beta = 4.0, Gamma = 3.0 (2+4), Delta = no reviews (excluded).
+    const [t1, t2, t3] = await Promise.all([
+      prisma.product.findUniqueOrThrow({ where: { sku: 'T1' } }),
+      prisma.product.findUniqueOrThrow({ where: { sku: 'T2' } }),
+      prisma.product.findUniqueOrThrow({ where: { sku: 'T3' } }),
+    ]);
+    const reviewers = await Promise.all(
+      ['r1@test.dev', 'r2@test.dev'].map((email, i) =>
+        prisma.user.create({ data: { email, passwordHash: 'x', name: `Reviewer ${i + 1}` } }),
+      ),
+    );
+    await prisma.review.createMany({
+      data: [
+        { productId: t1.id, userId: reviewers[0].id, rating: 5, body: 'great' },
+        { productId: t1.id, userId: reviewers[1].id, rating: 5, body: 'great' },
+        { productId: t2.id, userId: reviewers[0].id, rating: 4, body: 'good' },
+        { productId: t2.id, userId: reviewers[1].id, rating: 4, body: 'good' },
+        { productId: t3.id, userId: reviewers[0].id, rating: 2, body: 'meh' },
+        { productId: t3.id, userId: reviewers[1].id, rating: 4, body: 'ok' },
+      ],
+    });
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
 
   const list = (qs = '') => request(app.getHttpServer()).get(`/products${qs}`);
@@ -71,6 +97,27 @@ describe('Products (e2e)', () => {
     expect(prices.every((c: number) => c >= 1500 && c <= 3000)).toBe(true);
   });
 
+  it('filters by minimum average rating across the whole catalog (not just the current page)', async () => {
+    const r5 = await list('?minRating=5');
+    expect(r5.body.meta.total).toBe(1);
+    expect(r5.body.data.map((p: { name: string }) => p.name)).toEqual(['Alpha Shirt']);
+
+    const r4 = await list('?minRating=4');
+    expect(r4.body.meta.total).toBe(2);
+    expect(r4.body.data.every((p: { ratingAvg: number }) => p.ratingAvg >= 4)).toBe(true);
+
+    const r3 = await list('?minRating=3');
+    expect(r3.body.meta.total).toBe(3);
+    // Delta Book has no reviews (avg 0) and is always excluded.
+    expect(r3.body.data.map((p: { name: string }) => p.name)).not.toContain('Delta Book');
+  });
+
+  it('rejects out-of-range or non-integer minRating with 422', async () => {
+    expect((await list('?minRating=6')).status).toBe(422);
+    expect((await list('?minRating=0')).status).toBe(422);
+    expect((await list('?minRating=3.5')).status).toBe(422);
+  });
+
   it('sorts by price ascending', async () => {
     const res = await list('?sort=price_asc');
     const prices = res.body.data.map((p: { priceCents: number }) => p.priceCents);
@@ -98,5 +145,60 @@ describe('Products (e2e)', () => {
     expect((await request(app.getHttpServer()).get(`/products/${id}`)).status).toBe(200);
     expect((await request(app.getHttpServer()).get(`/products/${hiddenId}`)).status).toBe(404);
     expect((await request(app.getHttpServer()).get('/products/nope')).status).toBe(404);
+  });
+
+  it('returns real best sellers by paid units sold, excluding cancelled, unpaid, inactive, and out-of-stock products', async () => {
+    const buyer = await prisma.user.create({
+      data: {
+        email: 'best-seller-buyer@example.test',
+        passwordHash: 'hash',
+        name: 'Best Seller Buyer',
+      },
+    });
+    const alpha = await prisma.product.findUniqueOrThrow({ where: { sku: 'T1' } });
+    const betaOutOfStock = await prisma.product.findUniqueOrThrow({ where: { sku: 'T2' } });
+    const gamma = await prisma.product.findUniqueOrThrow({ where: { sku: 'T3' } });
+    const hidden = await prisma.product.findUniqueOrThrow({ where: { sku: 'T5' } });
+
+    const orderProduct = (
+      product: typeof alpha,
+      quantity: number,
+      opts: { status?: OrderStatus; paidAt?: Date | null } = {},
+    ) =>
+      prisma.order.create({
+        data: {
+          userId: buyer.id,
+          status: opts.status ?? OrderStatus.DELIVERED,
+          totalCents: product.priceCents * quantity,
+          paidAt: opts.paidAt === undefined ? new Date() : opts.paidAt,
+          items: {
+            create: [
+              {
+                productId: product.id,
+                productName: product.name,
+                productImageUrl: product.imageUrl,
+                productCategory: product.category,
+                unitPriceCents: product.priceCents,
+                quantity,
+              },
+            ],
+          },
+        },
+      });
+
+    await orderProduct(gamma, 3);
+    await orderProduct(alpha, 5);
+    await orderProduct(betaOutOfStock, 20);
+    await orderProduct(hidden, 20);
+    await orderProduct(gamma, 50, { status: OrderStatus.CANCELLED });
+    await orderProduct(gamma, 50, { paidAt: null });
+
+    const res = await request(app.getHttpServer()).get('/products/best-sellers?limit=3&windowDays=90');
+
+    expect(res.status).toBe(200);
+    const ids = res.body.map((p: { id: string }) => p.id);
+    expect(ids).toEqual([alpha.id, gamma.id]);
+    expect(ids).not.toContain(betaOutOfStock.id);
+    expect(ids).not.toContain(hidden.id);
   });
 });

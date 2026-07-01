@@ -7,19 +7,18 @@ import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
 import { ProductGrid, ProductGridSkeleton } from '@/components/store/ProductGrid';
-import { RecommendationsSection } from '@/components/store/RecommendationsSection';
 import { Hero } from '@/components/store/Hero';
 import { CategoryGrid } from '@/components/store/CategoryGrid';
 import { FlashSale } from '@/components/store/FlashSale';
 import { SectionHeader } from '@/components/store/SectionHeader';
 import { Philosophy } from '@/components/store/Philosophy';
 import { ProductCarousel } from '@/components/store/ProductCarousel';
-import { useProducts } from '@/lib/hooks/useProducts';
+import { Container } from '@/components/store/Container';
+import { useBestSellers, useProducts } from '@/lib/hooks/useProducts';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useRecommendations } from '@/lib/hooks/useRecommendations';
 import { useFeaturedReviews } from '@/lib/hooks/useReviews';
 import { fallbackTestimonials, toHomeTestimonial } from '@/lib/testimonials';
-import type { Product } from '@/lib/types';
 
 /** End of the current local day — a near-future, client-computed flash-sale deadline. */
 function endOfToday(): Date {
@@ -29,11 +28,12 @@ function endOfToday(): Date {
 }
 
 export default function HomePage() {
-  // One broad, newest-first fetch powers new arrivals + the derived sale/best-seller rails — every
-  // rail is driven by REAL backend badge / compareAt data, never a hardcoded product list.
+  // One broad, newest-first fetch powers new arrivals + the sale rail. Best sellers come from a
+  // dedicated real-sales endpoint so the section never relies on fake/manual product lists.
   const { data, isLoading, isError, refetch } = useProducts({ sort: 'newest', pageSize: 50 });
   const { data: user } = useMe();
   const recs = useRecommendations(user?.id ?? null);
+  const bestSellers = useBestSellers(4, 90);
   const reviews = useFeaturedReviews(6);
 
   const products = useMemo(() => data?.data ?? [], [data]);
@@ -51,17 +51,6 @@ export default function HomePage() {
         .slice(0, 4),
     [products],
   );
-
-  const bestSellers = useMemo(() => {
-    const tagged = products.filter(
-      (p) => p.badges.includes('BESTSELLER') || p.badges.includes('TRENDING'),
-    );
-    return tagged.slice(0, 4);
-  }, [products]);
-
-  // Fall back to personalized recommendations when nothing is badge-tagged as a best-seller.
-  const bestSellerItems: Product[] = bestSellers.length > 0 ? bestSellers : recs.data?.items ?? [];
-  const bestSellerLoading = bestSellers.length === 0 && recs.isLoading;
 
   const saleDeadline = useMemo(() => endOfToday(), []);
   const apiTestimonials = useMemo(
@@ -95,19 +84,22 @@ export default function HomePage() {
         )}
       </section>
 
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        {/* Best sellers (real BESTSELLER/TRENDING badges, fallback to recommendations) */}
-        <div className="pb-16">
-          <RecommendationsSection
-            eyebrow="Loved by shoppers"
-            title="Best sellers"
-            products={bestSellerItems}
-            isLoading={bestSellerLoading}
-            viewAllHref="/products"
-          />
-        </div>
-
-      </div>
+      {/* Best sellers — real paid order volume only; hidden until enough real data exists */}
+      {(bestSellers.isLoading || bestSellers.isError || (bestSellers.data?.length ?? 0) > 0) && (
+        <section className="v-section scroll-mt-24" aria-label="Best-selling products">
+          <SectionHeader eyebrow="Loved by shoppers" title="Best sellers" viewAllHref="/products" />
+          {bestSellers.isLoading ? (
+            <ProductGridSkeleton count={4} className="grid grid-cols-2 gap-5 lg:grid-cols-4" />
+          ) : bestSellers.isError ? (
+            <ErrorState onRetry={() => void bestSellers.refetch()} />
+          ) : (
+            <ProductGrid
+              products={bestSellers.data ?? []}
+              className="grid grid-cols-2 gap-5 lg:grid-cols-4"
+            />
+          )}
+        </section>
+      )}
 
       {/* Our philosophy split panel (Verdant reference port) */}
       <Philosophy />
@@ -177,7 +169,7 @@ export default function HomePage() {
       </section>
 
       {/* Newsletter prompt */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+      <Container as="section" className="py-16">
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-line bg-surface px-6 py-12 text-center shadow-[var(--shadow-card)]">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:text-brand-300">
             <Icon name="mail" size={24} />
@@ -195,7 +187,7 @@ export default function HomePage() {
             </Button>
           </Link>
         </div>
-      </section>
+      </Container>
     </div>
   );
 }

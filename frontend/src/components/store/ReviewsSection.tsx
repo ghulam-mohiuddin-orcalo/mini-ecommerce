@@ -12,6 +12,7 @@ import { Pagination } from '@/components/store/Pagination';
 import { WriteReviewForm } from '@/components/store/WriteReviewForm';
 import { cn } from '@/lib/cn';
 import { formatDate } from '@/lib/format';
+import { signinHref } from '@/lib/authNav';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useDeleteReview, useReviews } from '@/lib/hooks/useReviews';
 import type { Review } from '@/lib/types';
@@ -130,7 +131,7 @@ export function ReviewsSection({
         ) : (
           <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5 text-center shadow-[var(--shadow-card)]">
             <p className="text-sm text-ink-soft">Purchased this product? Sign in to leave a review.</p>
-            <Link href="/login">
+            <Link href={signinHref(`/products/${productId}`)}>
               <Button variant="secondary" className="w-full">
                 Sign in
               </Button>

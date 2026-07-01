@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Container } from '@/components/store/Container';
 import { Badge } from '@/components/ui/Badge';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { Button } from '@/components/ui/Button';
@@ -21,6 +22,7 @@ import { ReviewsSection } from '@/components/store/ReviewsSection';
 import { VariantSelector } from '@/components/store/VariantSelector';
 import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
+import { signinHref } from '@/lib/authNav';
 import { useProduct } from '@/lib/hooks/useProducts';
 import { useRelatedProducts } from '@/lib/hooks/useRecommendations';
 import { useMe } from '@/lib/hooks/useAuth';
@@ -74,7 +76,7 @@ export default function ProductDetailPage() {
     if (!product) return;
     if (!signedIn) {
       toast({ variant: 'default', title: 'Sign in to add to your bag' });
-      router.push('/login');
+      router.push(signinHref(`/products/${product.id}`));
       return;
     }
     if (needsVariant) {
@@ -100,7 +102,7 @@ export default function ProductDetailPage() {
     if (!product) return;
     if (!signedIn) {
       toast({ variant: 'default', title: 'Sign in to save favourites' });
-      router.push('/login');
+      router.push(signinHref(`/products/${product.id}`));
       return;
     }
     toggleWishlist.mutate(product.id, {
@@ -114,7 +116,7 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <Container className="py-8">
       {isLoading ? (
         <DetailSkeleton />
       ) : notFound ? (
@@ -337,7 +339,7 @@ export default function ProductDetailPage() {
           </div>
         </>
       ) : null}
-    </div>
+    </Container>
   );
 }
 

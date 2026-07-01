@@ -25,8 +25,10 @@ export function useLogin() {
     mutationFn: (body: { email: string; password: string }) =>
       apiFetch<User>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: (user) => {
+      // Start from a clean cache so no prior visitor's user-scoped data (wishlist, cart, orders)
+      // is inherited, then seed the freshly authenticated user.
+      qc.clear();
       qc.setQueryData(['me'], user);
-      void qc.invalidateQueries({ queryKey: ['cart'] });
     },
   });
 }
@@ -37,8 +39,9 @@ export function useSignup() {
     mutationFn: (body: { email: string; name: string; password: string }) =>
       apiFetch<User>('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
     onSuccess: (user) => {
+      // Clean slate for the new account (see useLogin), then seed the authenticated user.
+      qc.clear();
       qc.setQueryData(['me'], user);
-      void qc.invalidateQueries({ queryKey: ['cart'] });
     },
   });
 }
@@ -48,8 +51,11 @@ export function useLogout() {
   return useMutation({
     mutationFn: () => apiFetch<{ success: true }>('/auth/logout', { method: 'POST' }),
     onSuccess: () => {
+      // Drop every cached query so no user-scoped data (wishlist, cart, orders, recommendations,
+      // addresses) lingers for the signed-out visitor or leaks into a subsequent user's session.
+      // Then mark the user signed-out immediately so guards react without a refetch flash.
+      qc.clear();
       qc.setQueryData(['me'], null);
-      qc.removeQueries({ queryKey: ['cart'] });
     },
   });
 }

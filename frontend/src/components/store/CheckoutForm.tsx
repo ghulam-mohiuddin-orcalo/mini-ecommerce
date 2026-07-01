@@ -1,16 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Toggle } from '@/components/ui/Toggle';
 import { Icon } from '@/components/ui/Icon';
-import { cn } from '@/lib/cn';
+import { Toggle } from '@/components/ui/Toggle';
 import { formatPrice } from '@/lib/format';
 import { usePaymentIntentStatus } from '@/lib/hooks/usePayments';
 import {
@@ -21,31 +17,27 @@ import {
   type AddressErrors,
 } from '@/lib/checkout-validation';
 import type { Cart } from '@/lib/types';
+import { AddressFields } from './checkout/AddressFields';
+import { CheckoutNavigation } from './checkout/CheckoutNavigation';
+import { CheckoutStep } from './checkout/CheckoutStep';
+import { CHECKOUT_STEPS, CheckoutStepper } from './checkout/CheckoutStepper';
+import { OrderSummary } from './checkout/OrderSummary';
+import { ReviewStep } from './checkout/ReviewStep';
 
-/** ISO 3166-1 alpha-2 codes — Stripe's `address.country` expects the 2-letter code. */
-const COUNTRIES: { code: string; name: string }[] = [
-  { code: 'US', name: 'United States' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'IE', name: 'Ireland' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'ES', name: 'Spain' },
-  { code: 'IT', name: 'Italy' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'SE', name: 'Sweden' },
-  { code: 'AE', name: 'United Arab Emirates' },
-  { code: 'SG', name: 'Singapore' },
-  { code: 'IN', name: 'India' },
-  { code: 'PK', name: 'Pakistan' },
-];
+const STEP_SHIPPING = 0;
+const STEP_PAYMENT = 1;
+const STEP_REVIEW = 2;
+const LAST_STEP = STEP_REVIEW;
 
 /**
  * The embedded checkout form. Rendered inside a Stripe <Elements> provider, so it can read the
- * Payment Element via useStripe/useElements. Collects shipping + billing, confirms the payment
- * in-app (no redirect for cards), then polls the backend to resolve the created order.
+ * Payment Element via useStripe/useElements. Organised as a three-step flow (Shipping → Payment →
+ * Review) with only one step visible at a time; collects shipping + billing, confirms the payment
+ * in-app (no redirect for cards) on the Review step, then polls the backend to resolve the order.
+ *
+ * The step state lives here (not in a route) so no navigation drops the mounted Payment Element and
+ * no entered data is lost between steps. The submission logic (validate → confirmPayment → poll) is
+ * unchanged from the single-page version; only the surrounding UI is reorganised.
  */
 export function CheckoutForm({
   cart,
@@ -61,6 +53,7 @@ export function CheckoutForm({
   const stripe = useStripe();
   const elements = useElements();
 
+  const [step, setStep] = useState(STEP_SHIPPING);
   const [shipping, setShipping] = useState<Address>(EMPTY_ADDRESS);
   const [billing, setBilling] = useState<Address>(EMPTY_ADDRESS);
   const [billingSame, setBillingSame] = useState(true);
@@ -97,16 +90,23 @@ export function CheckoutForm({
     }
   }, [confirmedId, status.data, status.isError, qc, router]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (submitting) return;
+  /** Move focus to the first invalid field in the visible step (keyboard + screen-reader users). */
+  const focusFirstInvalid = () => {
+    formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  };
 
+  const placeOrder = async () => {
+    // Re-validate everything at the trust hand-off, jumping back to the step that owns any error
+    // (defence in depth — the user can't reach Review without passing these, but never assume it).
     const shippingErrors = validateAddress(shipping, true);
     const billingErrors = billingSame ? {} : validateAddress(billing, false);
     setErrors({ shipping: shippingErrors, billing: billingErrors });
-    if (Object.keys(shippingErrors).length || Object.keys(billingErrors).length) {
-      // Bring the first invalid field into view for keyboard + screen-reader users.
-      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    if (Object.keys(shippingErrors).length) {
+      setStep(STEP_SHIPPING);
+      return;
+    }
+    if (Object.keys(billingErrors).length) {
+      setStep(STEP_PAYMENT);
       return;
     }
 
@@ -156,385 +156,180 @@ export function CheckoutForm({
     // /checkout/success completes the reconciliation.
   };
 
+  // A single submit handler drives the flow: advance (with per-step validation) until the Review
+  // step, then place the order. Both "Continue" and "Place order" are submit buttons, so pressing
+  // Enter does the right thing on every step and never confirms payment prematurely.
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    if (step === STEP_SHIPPING) {
+      const shippingErrors = validateAddress(shipping, true);
+      setErrors((prev) => ({ ...prev, shipping: shippingErrors }));
+      if (Object.keys(shippingErrors).length) {
+        focusFirstInvalid();
+        return;
+      }
+      setStep(STEP_PAYMENT);
+      return;
+    }
+
+    if (step === STEP_PAYMENT) {
+      const billingErrors = billingSame ? {} : validateAddress(billing, false);
+      setErrors((prev) => ({ ...prev, billing: billingErrors }));
+      if (Object.keys(billingErrors).length) {
+        focusFirstInvalid();
+        return;
+      }
+      setStep(STEP_REVIEW);
+      return;
+    }
+
+    await placeOrder();
+  };
+
+  const goBack = () => {
+    if (submitting) return;
+    setStep((s) => Math.max(STEP_SHIPPING, s - 1));
+  };
+
   const finalizing = submitting && confirmedId !== null;
 
   return (
-    <form ref={formRef} noValidate onSubmit={onSubmit} className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-      <div className="flex flex-col gap-6">
-        {/* Shipping */}
-        <Card icon="package" title="Shipping information" step={1}>
-          <AddressFields
-            idPrefix="ship"
-            value={shipping}
-            errors={errors.shipping}
-            onChange={(patch) => setShipping((s) => ({ ...s, ...patch }))}
-            requireContact
-            disabled={submitting}
-          />
-        </Card>
+    <form
+      ref={formRef}
+      noValidate
+      onSubmit={onSubmit}
+      className="grid grid-cols-1 gap-9 lg:grid-cols-[1fr_380px] lg:items-start"
+    >
+      <div className="flex flex-col">
+        <Link
+          href="/cart"
+          className="mb-5 inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-muted transition-colors hover:text-ink"
+        >
+          <Icon name="arrow-left" size={15} />
+          Back to cart
+        </Link>
 
-        {/* Billing */}
-        <Card icon="wallet" title="Billing information">
-          <label className="flex cursor-pointer items-center gap-3">
-            <Toggle
-              label="Billing address is same as shipping"
-              checked={billingSame}
-              onChange={setBillingSame}
+        <CheckoutStepper current={step} className="mb-9" />
+
+        {/* Announce step changes to assistive tech (the stepper is visual). */}
+        <p className="sr-only" role="status" aria-live="polite">
+          Step {step + 1} of {CHECKOUT_STEPS.length}: {CHECKOUT_STEPS[step]}
+        </p>
+
+        <div className="flex flex-col gap-6">
+          <CheckoutStep
+            active={step === STEP_SHIPPING}
+            icon="package"
+            title="Shipping details"
+            description="Where should we send your order?"
+          >
+            <AddressFields
+              idPrefix="ship"
+              value={shipping}
+              errors={errors.shipping}
+              onChange={(patch) => setShipping((s) => ({ ...s, ...patch }))}
+              requireContact
               disabled={submitting}
             />
-            <span className="text-sm font-semibold text-ink">Billing address is same as shipping</span>
-          </label>
-          {!billingSame && (
-            <div className="mt-5 border-t border-line-soft pt-5">
-              <AddressFields
-                idPrefix="bill"
-                value={billing}
-                errors={errors.billing}
-                onChange={(patch) => setBilling((b) => ({ ...b, ...patch }))}
-                requireContact={false}
+          </CheckoutStep>
+
+          {/* Kept mounted so the Stripe Payment Element survives step changes. */}
+          <CheckoutStep
+            active={step === STEP_PAYMENT}
+            keepMounted
+            icon="wallet"
+            title="Payment"
+            description="Your billing details and card, encrypted end to end."
+          >
+            <label className="flex cursor-pointer items-center gap-3">
+              <Toggle
+                label="Billing address is same as shipping"
+                checked={billingSame}
+                onChange={setBillingSame}
                 disabled={submitting}
               />
-            </div>
-          )}
-        </Card>
+              <span className="text-sm font-semibold text-ink">
+                Billing address is same as shipping
+              </span>
+            </label>
 
-        {/* Payment */}
-        <Card icon="lock" title="Payment" step={2}>
-          <p className="mb-4 flex items-center gap-2 text-[13px] text-muted">
-            <Icon name="shield-check" size={15} className="text-brand-500 dark:text-brand-300" />
-            Encrypted and processed securely by Stripe. Test card{' '}
-            <span className="font-semibold text-ink">4242 4242 4242 4242</span>, any future expiry &amp; CVC.
-          </p>
-          {/* billingDetails collected by our own form above → tell the element not to ask again. */}
-          <PaymentElement options={{ layout: 'tabs', fields: { billingDetails: 'never' } }} />
-
-          {paymentError && (
-            <p
-              role="alert"
-              className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--color-danger-soft)] px-3.5 py-2.5 text-sm text-[var(--color-danger-ink)]"
-            >
-              <Icon name="alert-triangle" size={16} className="mt-0.5 shrink-0" />
-              {paymentError}
-            </p>
-          )}
-        </Card>
-      </div>
-
-      {/* Order summary — sticky on desktop */}
-      <aside className="lg:sticky lg:top-20 lg:self-start">
-        <div className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-summary)]">
-          <h2 className="text-base font-extrabold tracking-tight text-ink">Order summary</h2>
-
-          <ul className="mt-4 flex flex-col divide-y divide-[var(--color-line-soft)]">
-            {cart.items.map((line) => (
-              <li key={`${line.productId}:${line.variantId ?? 'base'}`} className="flex items-center gap-3 py-3">
-                <span className="relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-50 to-brand-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={line.imageUrl} alt="" className="h-full w-full object-cover" />
-                  <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
-                    {line.quantity}
-                  </span>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-1 text-sm font-semibold text-ink">{line.name}</p>
-                  {line.variantLabel ? (
-                    <p className="line-clamp-1 text-xs text-muted">{line.variantLabel}</p>
-                  ) : null}
-                  <p className="text-xs text-muted">{formatPrice(line.unitPriceCents)} each</p>
-                </div>
-                <span className="text-sm font-bold tabular-nums text-ink">
-                  {formatPrice(line.lineTotalCents)}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          <dl className="mt-4 space-y-2.5 border-t border-line-soft pt-4 text-sm">
-            <Row label={`Subtotal (${cart.itemCount} item${cart.itemCount === 1 ? '' : 's'})`}>
-              {formatPrice(cart.totalCents)}
-            </Row>
-            <Row label="Shipping">
-              <span className="font-semibold text-brand-500 dark:text-brand-300">Free</span>
-            </Row>
-            <Row label="Tax">
-              <span className="text-muted">—</span>
-            </Row>
-          </dl>
-
-          <div className="mt-4 flex items-baseline justify-between border-t border-line-soft pt-4">
-            <span className="text-base font-extrabold text-ink">Total</span>
-            <span className="font-serif text-[26px] font-medium tracking-tight text-brand-700 dark:text-brand-300">
-              {formatPrice(amountCents)}
-            </span>
-          </div>
-
-          <Button type="submit" size="lg" className="mt-5 w-full" disabled={!stripe || submitting}>
-            {finalizing ? (
-              <>
-                <Spinner /> Finalizing order…
-              </>
-            ) : submitting ? (
-              <>
-                <Spinner /> Processing payment…
-              </>
-            ) : (
-              <>
-                <Icon name="lock" size={16} />
-                Place order · {formatPrice(amountCents)}
-              </>
+            {!billingSame && (
+              <div className="mt-5 border-t border-line-soft pt-5">
+                <AddressFields
+                  idPrefix="bill"
+                  value={billing}
+                  errors={errors.billing}
+                  onChange={(patch) => setBilling((b) => ({ ...b, ...patch }))}
+                  requireContact={false}
+                  disabled={submitting}
+                />
+              </div>
             )}
-          </Button>
 
-          <Link
-            href="/cart"
-            className="mt-3 block text-center text-sm font-semibold text-muted transition-colors hover:text-ink"
+            <div className="mt-6 border-t border-line-soft pt-6">
+              <p className="mb-4 flex items-center gap-2 text-[13px] text-muted">
+                <Icon name="shield-check" size={15} className="text-brand-500 dark:text-brand-300" />
+                Encrypted and processed securely by Stripe. Test card{' '}
+                <span className="font-semibold text-ink">4242 4242 4242 4242</span>, any future
+                expiry &amp; CVC.
+              </p>
+              {/* billingDetails collected by our own form above → tell the element not to ask again. */}
+              <PaymentElement options={{ layout: 'tabs', fields: { billingDetails: 'never' } }} />
+
+              {paymentError && (
+                <p
+                  role="alert"
+                  className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--color-danger-soft)] px-3.5 py-2.5 text-sm text-[var(--color-danger-ink)]"
+                >
+                  <Icon name="alert-triangle" size={16} className="mt-0.5 shrink-0" />
+                  {paymentError}
+                </p>
+              )}
+            </div>
+          </CheckoutStep>
+
+          <CheckoutStep
+            active={step === STEP_REVIEW}
+            icon="check-circle"
+            title="Review your order"
+            description="Confirm everything looks right before you place the order."
           >
-            Back to cart
-          </Link>
-          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-muted">
-            <Icon name="shield-check" size={13} className="text-brand-500 dark:text-brand-300" />
-            Secured by Stripe · you never leave the site
-          </p>
+            <ReviewStep
+              cart={cart}
+              shipping={shipping}
+              billing={billing}
+              billingSame={billingSame}
+              onEditShipping={() => setStep(STEP_SHIPPING)}
+              onEditPayment={() => setStep(STEP_PAYMENT)}
+            />
+
+            {/* The Review step is where payment is actually confirmed — surface errors here too. */}
+            {paymentError && step === STEP_REVIEW && (
+              <p
+                role="alert"
+                className="mt-5 flex items-start gap-2 rounded-lg bg-[var(--color-danger-soft)] px-3.5 py-2.5 text-sm text-[var(--color-danger-ink)]"
+              >
+                <Icon name="alert-triangle" size={16} className="mt-0.5 shrink-0" />
+                {paymentError}
+              </p>
+            )}
+          </CheckoutStep>
         </div>
-      </aside>
-    </form>
-  );
-}
 
-function AddressFields({
-  idPrefix,
-  value,
-  errors,
-  onChange,
-  requireContact,
-  disabled,
-}: {
-  idPrefix: string;
-  value: Address;
-  errors: AddressErrors;
-  onChange: (patch: Partial<Address>) => void;
-  requireContact: boolean;
-  disabled: boolean;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field
-        className="sm:col-span-2"
-        id={`${idPrefix}-fullName`}
-        label="Full name"
-        error={errors.fullName}
-      >
-        <Input
-          id={`${idPrefix}-fullName`}
-          autoComplete="name"
-          value={value.fullName}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.fullName)}
-          aria-describedby={errors.fullName ? `${idPrefix}-fullName-err` : undefined}
-          onChange={(e) => onChange({ fullName: e.target.value })}
+        <CheckoutNavigation
+          isFirst={step === STEP_SHIPPING}
+          isLast={step === LAST_STEP}
+          onBack={goBack}
+          submitting={submitting}
+          finalizing={finalizing}
+          placeDisabled={!stripe || submitting}
+          amountLabel={formatPrice(amountCents)}
         />
-      </Field>
-
-      {requireContact && (
-        <>
-          <Field id={`${idPrefix}-email`} label="Email" error={errors.email}>
-            <Input
-              id={`${idPrefix}-email`}
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              value={value.email}
-              disabled={disabled}
-              aria-invalid={Boolean(errors.email)}
-              aria-describedby={errors.email ? `${idPrefix}-email-err` : undefined}
-              onChange={(e) => onChange({ email: e.target.value })}
-            />
-          </Field>
-          <Field id={`${idPrefix}-phone`} label="Phone number" error={errors.phone}>
-            <Input
-              id={`${idPrefix}-phone`}
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              value={value.phone}
-              disabled={disabled}
-              aria-invalid={Boolean(errors.phone)}
-              aria-describedby={errors.phone ? `${idPrefix}-phone-err` : undefined}
-              onChange={(e) => onChange({ phone: e.target.value })}
-            />
-          </Field>
-        </>
-      )}
-
-      <Field id={`${idPrefix}-country`} label="Country" error={errors.country}>
-        <Select
-          id={`${idPrefix}-country`}
-          autoComplete="country"
-          value={value.country}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.country)}
-          aria-describedby={errors.country ? `${idPrefix}-country-err` : undefined}
-          onChange={(e) => onChange({ country: e.target.value })}
-        >
-          <option value="" disabled>
-            Select country
-          </option>
-          {COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-      </Field>
-
-      <Field id={`${idPrefix}-state`} label="State / Province" error={errors.state}>
-        <Input
-          id={`${idPrefix}-state`}
-          autoComplete="address-level1"
-          value={value.state}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.state)}
-          aria-describedby={errors.state ? `${idPrefix}-state-err` : undefined}
-          onChange={(e) => onChange({ state: e.target.value })}
-        />
-      </Field>
-
-      <Field id={`${idPrefix}-city`} label="City" error={errors.city}>
-        <Input
-          id={`${idPrefix}-city`}
-          autoComplete="address-level2"
-          value={value.city}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.city)}
-          aria-describedby={errors.city ? `${idPrefix}-city-err` : undefined}
-          onChange={(e) => onChange({ city: e.target.value })}
-        />
-      </Field>
-
-      <Field id={`${idPrefix}-postal`} label="Postal code" error={errors.postal}>
-        <Input
-          id={`${idPrefix}-postal`}
-          autoComplete="postal-code"
-          value={value.postal}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.postal)}
-          aria-describedby={errors.postal ? `${idPrefix}-postal-err` : undefined}
-          onChange={(e) => onChange({ postal: e.target.value })}
-        />
-      </Field>
-
-      <Field
-        className="sm:col-span-2"
-        id={`${idPrefix}-line1`}
-        label="Address line 1"
-        error={errors.line1}
-      >
-        <Input
-          id={`${idPrefix}-line1`}
-          autoComplete="address-line1"
-          value={value.line1}
-          disabled={disabled}
-          aria-invalid={Boolean(errors.line1)}
-          aria-describedby={errors.line1 ? `${idPrefix}-line1-err` : undefined}
-          onChange={(e) => onChange({ line1: e.target.value })}
-        />
-      </Field>
-
-      <Field
-        className="sm:col-span-2"
-        id={`${idPrefix}-line2`}
-        label="Address line 2"
-        optional
-      >
-        <Input
-          id={`${idPrefix}-line2`}
-          autoComplete="address-line2"
-          value={value.line2}
-          disabled={disabled}
-          onChange={(e) => onChange({ line2: e.target.value })}
-        />
-      </Field>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  label,
-  error,
-  optional,
-  className,
-  children,
-}: {
-  id: string;
-  label: string;
-  error?: string;
-  optional?: boolean;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={id} className="text-sm font-semibold text-ink">
-        {label}
-        {optional && <span className="ml-1.5 text-xs font-medium text-muted">(optional)</span>}
-      </label>
-      {children}
-      {error && (
-        <p id={`${id}-err`} role="alert" className="text-xs font-medium text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Card({
-  icon,
-  title,
-  step,
-  children,
-}: {
-  icon: Parameters<typeof Icon>[0]['name'];
-  title: string;
-  step?: number;
-  children: ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)] sm:p-7">
-      <div className="mb-5 flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-brand-50 text-brand-600 dark:text-brand-300" aria-hidden="true">
-          <Icon name={icon} size={17} />
-        </span>
-        <h2 className="text-base font-extrabold tracking-tight text-ink">{title}</h2>
-        {step != null && (
-          <span
-            aria-hidden="true"
-            className="ml-auto text-xs font-bold uppercase tracking-[0.08em] text-faint"
-          >
-            Step {step}
-          </span>
-        )}
       </div>
-      {children}
-    </section>
-  );
-}
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-semibold text-ink">{children}</dd>
-    </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-    </svg>
+      <OrderSummary cart={cart} amountCents={amountCents} />
+    </form>
   );
 }

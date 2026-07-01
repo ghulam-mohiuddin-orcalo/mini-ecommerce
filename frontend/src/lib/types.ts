@@ -280,6 +280,8 @@ export interface ProductQuery {
   category?: string;
   minPrice?: number;
   maxPrice?: number;
+  /** Minimum average customer rating, 1–5 (server-side filter). */
+  minRating?: number;
   sort?: ProductSort;
   page?: number;
   pageSize?: number;

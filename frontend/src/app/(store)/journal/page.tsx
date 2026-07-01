@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useState, type FormEvent } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ArticleCard } from '@/components/store/ArticleCard';
+import { Container } from '@/components/store/Container';
 import { Pagination } from '@/components/store/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -69,7 +70,7 @@ function JournalClient() {
   const hasFilters = Boolean(search || category);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+    <Container className="py-14 sm:py-16">
       <header className="pp-rise max-w-2xl">
         <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-500 dark:text-brand-300">
           The Journal
@@ -191,15 +192,13 @@ function JournalClient() {
           </div>
         )}
       </section>
-    </div>
+    </Container>
   );
 }
 
 export default function JournalPage() {
   return (
-    <Suspense
-      fallback={<div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16" aria-hidden="true" />}
-    >
+    <Suspense fallback={<Container className="py-14 sm:py-16" />}>
       <JournalClient />
     </Suspense>
   );

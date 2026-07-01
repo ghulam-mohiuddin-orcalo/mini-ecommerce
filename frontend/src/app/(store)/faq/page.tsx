@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Accordion } from '@/components/ui/Accordion';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
+import { Container } from '@/components/store/Container';
 import { useFaq } from '@/lib/hooks/useSiteContent';
 
 export default function FaqPage() {
@@ -13,7 +14,7 @@ export default function FaqPage() {
     categories && categories.some((cat) => cat.items.length > 0);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
+    <Container width="narrow" className="py-14 sm:py-20">
       <header className="pp-rise">
         <span className="inline-flex items-center gap-2 rounded-full bg-brand-100 px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-500 dark:text-brand-300">
           Help
@@ -74,6 +75,6 @@ export default function FaqPage() {
           </div>
         )}
       </div>
-    </div>
+    </Container>
   );
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/cn';
+import { signinHref } from '@/lib/authNav';
 import { useMe, useLogout } from '@/lib/hooks/useAuth';
 import { useCart } from '@/lib/hooks/useCart';
 import { useWishlist } from '@/lib/hooks/useWishlist';
@@ -359,7 +360,7 @@ export function StoreHeader() {
                 onSignOut={() => logout.mutate(undefined, { onSuccess: () => router.push('/') })}
               />
             ) : (
-              <Link href="/login" className="v-signin" style={{ textDecoration: 'none' }}>
+              <Link href={signinHref(pathname)} className="v-signin" style={{ textDecoration: 'none' }}>
                 Sign in
               </Link>
             )}

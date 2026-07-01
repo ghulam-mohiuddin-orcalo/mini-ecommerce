@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArticleCard } from '@/components/store/ArticleCard';
+import { Container } from '@/components/store/Container';
 import { Prose } from '@/components/store/Prose';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { Button } from '@/components/ui/Button';
@@ -28,7 +29,7 @@ export default function ArticleDetailPage() {
   }, [article?.title]);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+    <Container width="narrow" className="py-12 sm:py-16">
       {isLoading ? (
         <div className="flex flex-col gap-5">
           <Skeleton className="h-4 w-56" />
@@ -119,7 +120,7 @@ export default function ArticleDetailPage() {
           )}
         </>
       ) : null}
-    </div>
+    </Container>
   );
 }
 

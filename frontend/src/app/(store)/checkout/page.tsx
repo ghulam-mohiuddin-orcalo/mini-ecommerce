@@ -9,11 +9,11 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Icon } from '@/components/ui/Icon';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { Container } from '@/components/store/Container';
 import { CheckoutForm } from '@/components/store/CheckoutForm';
-import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
 import { getStripe } from '@/lib/stripe';
-import { useMe } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { useCart } from '@/lib/hooks/useCart';
 import { usePaymentIntent } from '@/lib/hooks/usePayments';
 import { usePreferences } from '@/lib/hooks/usePreferences';
@@ -42,7 +42,7 @@ function appearanceFor(theme: 'light' | 'dark'): Appearance {
 }
 
 export default function CheckoutPage() {
-  const { data: user, isLoading: userLoading } = useMe();
+  const { user, gate } = useRequireAuth();
   const { data: cart, isLoading: cartLoading } = useCart(Boolean(user));
   const { resolvedTheme } = usePreferences();
   // Render-critical data fetched as a query (cache-backed, remount-safe), enabled by a non-empty
@@ -54,21 +54,10 @@ export default function CheckoutPage() {
     return { clientSecret: intent.data.clientSecret, appearance: appearanceFor(resolvedTheme) };
   }, [intent.data, resolvedTheme]);
 
-  if (userLoading || (user && cartLoading)) {
-    return <Shell><CheckoutSkeleton /></Shell>;
-  }
+  if (gate) return <Shell>{gate}</Shell>;
 
-  if (!user) {
-    return (
-      <Shell>
-        <EmptyState
-          icon={<Icon name="lock" size={28} />}
-          title="Sign in to check out"
-          description="You need an account to place an order."
-          action={<Link href="/login"><Button>Sign in</Button></Link>}
-        />
-      </Shell>
-    );
+  if (cartLoading) {
+    return <Shell><CheckoutSkeleton /></Shell>;
   }
 
   if (!cart || cart.items.length === 0) {
@@ -127,7 +116,7 @@ export default function CheckoutPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <Container className="py-8">
       <div className="pp-rise mb-6">
         <Breadcrumbs
           items={[{ label: 'Home', href: '/' }, { label: 'Cart', href: '/cart' }, { label: 'Checkout' }]}
@@ -136,60 +125,34 @@ function Shell({ children }: { children: React.ReactNode }) {
         <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink">Checkout</h1>
         <p className="mt-1.5 text-muted">Complete your order — securely, without leaving the site.</p>
       </div>
-      <CheckoutSteps className="pp-rise mb-7" />
       {children}
-    </div>
-  );
-}
-
-/**
- * Visual progress indicator for the checkout flow. The underlying submission is still a single
- * page (Stripe confirm + poll) — these are presentational anchors, not separate routed steps.
- */
-function CheckoutSteps({ className }: { className?: string }) {
-  const steps = [
-    { n: 1, label: 'Shipping', icon: 'package' as const },
-    { n: 2, label: 'Payment', icon: 'wallet' as const },
-    { n: 3, label: 'Review', icon: 'check-circle' as const },
-  ];
-  return (
-    <ol className={cn('flex items-center gap-2 sm:gap-3', className)} aria-label="Checkout progress">
-      {steps.map((step, i) => (
-        <li key={step.n} className="flex flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2.5">
-            <span
-              aria-hidden="true"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600 ring-1 ring-brand-200 dark:text-brand-300"
-            >
-              <Icon name={step.icon} size={16} />
-            </span>
-            <span className="text-sm font-semibold tracking-tight text-ink">{step.label}</span>
-          </div>
-          {i < steps.length - 1 && (
-            <span aria-hidden="true" className="h-px flex-1 bg-line" />
-          )}
-        </li>
-      ))}
-    </ol>
+    </Container>
   );
 }
 
 function CheckoutSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
-      <div className="flex flex-col gap-6">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)]">
-            <Skeleton className="mb-5 h-6 w-44" />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {Array.from({ length: i === 2 ? 1 : 6 }).map((_, j) => (
-                <Skeleton key={j} className="h-11 w-full" />
-              ))}
+    <div className="grid grid-cols-1 gap-9 lg:grid-cols-[1fr_380px] lg:items-start">
+      <div className="flex flex-col">
+        <div className="mx-auto mb-9 flex w-full max-w-[520px] items-center justify-between">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-2">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-3 w-14" />
             </div>
+          ))}
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-6 shadow-[var(--shadow-card)] sm:p-7">
+          <Skeleton className="mb-6 h-7 w-52" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, j) => (
+              <Skeleton key={j} className="h-11 w-full" />
+            ))}
           </div>
-        ))}
+        </div>
+        <Skeleton className="mt-6 h-[50px] w-full rounded-xl" />
       </div>
-      <Skeleton className="h-96 w-full rounded-2xl" />
+      <Skeleton className="h-96 w-full rounded-[22px]" />
     </div>
   );
 }

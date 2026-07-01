@@ -1467,3 +1467,188 @@ html[data-theme='dark'] {
   }
 }
 
+
+/* ---- Auth screens (standalone split-screen layout, reference port). ---- */
+.v-auth-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  background: var(--bg);
+}
+.v-auth-brand {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, var(--forest), var(--primary));
+  color: #eaf3ef;
+  padding: 52px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+}
+.v-auth-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(50px);
+  pointer-events: none;
+}
+.v-auth-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 30px 56px;
+  min-height: 100vh;
+}
+.v-auth-body {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.v-auth-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+.v-auth-back:hover {
+  background: var(--surface2);
+  color: var(--ink);
+}
+.v-auth-toggle {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.v-auth-toggle:hover {
+  background: var(--surface2);
+  color: var(--ink);
+}
+
+.v-auth-input {
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: 13px;
+  border: 1px solid var(--line2);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.v-auth-input::placeholder {
+  color: var(--faint);
+}
+.v-auth-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
+.v-auth-primary {
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 14px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 14px 30px -12px color-mix(in oklab, var(--primary) 70%, transparent);
+  transition: transform 0.25s, background 0.25s, box-shadow 0.25s;
+}
+.v-auth-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: var(--primary2);
+  box-shadow: 0 20px 40px -14px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+.v-auth-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.v-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0;
+}
+.v-auth-divider::before,
+.v-auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.v-auth-divider span {
+  font-size: 12.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.v-auth-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 50px;
+  border: 1px solid var(--line2);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.v-auth-social:hover {
+  background: var(--surface2);
+}
+
+.v-auth-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+.v-auth-link:hover {
+  text-decoration: underline;
+}
+.v-auth-footlink {
+  color: var(--muted);
+  text-decoration: none;
+}
+.v-auth-footlink:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+@media (max-width: 880px) {
+  .v-auth-shell {
+    grid-template-columns: 1fr;
+  }
+  .v-auth-brand {
+    display: none;
+  }
+  .v-auth-panel {
+    padding: 22px 20px;
+  }
+}

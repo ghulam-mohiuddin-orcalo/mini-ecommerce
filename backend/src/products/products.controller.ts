@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
+import { BestSellersQueryDto } from './dto/best-sellers-query.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { PaginatedProductsDto, ProductResponseDto } from './dto/product-response.dto';
 import { ProductsService } from './products.service';
@@ -24,6 +25,13 @@ export class ProductsController {
   @ApiOkResponse({ type: String, isArray: true })
   listCategories(): Promise<string[]> {
     return this.productsService.listCategories();
+  }
+
+  @Get('best-sellers')
+  @ApiOperation({ summary: 'List active best-selling products from real paid orders' })
+  @ApiOkResponse({ type: ProductResponseDto, isArray: true })
+  bestSellers(@Query() query: BestSellersQueryDto): Promise<ProductResponseDto[]> {
+    return this.productsService.findBestSellers(query.limit, query.windowDays);
   }
 
   @Get(':id')

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
+import { Container } from '@/components/store/Container';
 import { usePaymentIntentStatus, useSessionStatus } from '@/lib/hooks/usePayments';
 
 /**
@@ -109,10 +110,10 @@ function CheckoutSuccess() {
 
 export default function CheckoutSuccessPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <Container width="narrow" className="py-8">
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <CheckoutSuccess />
       </Suspense>
-    </div>
+    </Container>
   );
 }

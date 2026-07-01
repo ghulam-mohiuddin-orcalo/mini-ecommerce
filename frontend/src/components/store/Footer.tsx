@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { VerdantLogo } from '@/components/store/VerdantLogo';
+import { Container } from '@/components/store/Container';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError } from '@/lib/api';
 import { useCategories } from '@/lib/hooks/useProducts';
@@ -133,7 +134,7 @@ export function Footer() {
 
   return (
     <footer className="mt-16 border-t border-line bg-paper-2">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+      <Container className="py-12">
         {/* Newsletter */}
         <div className="flex flex-col gap-6 border-b border-line pb-10 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-md">
@@ -192,7 +193,7 @@ export function Footer() {
             ))}
           </ul>
         </div>
-      </div>
+      </Container>
     </footer>
   );
 }

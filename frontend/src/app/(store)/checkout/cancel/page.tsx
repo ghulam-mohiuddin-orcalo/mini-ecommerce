@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { EmptyState } from '@/components/ui/States';
+import { Container } from '@/components/store/Container';
 
 /**
  * Stripe Checkout cancel return page. Stripe redirects here when the customer abandons the
@@ -11,7 +12,7 @@ import { EmptyState } from '@/components/ui/States';
  */
 export default function CheckoutCancelPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <Container width="narrow" className="py-8">
       <div className="pp-rise">
         <EmptyState
           icon={<Icon name="x-circle" size={28} />}
@@ -25,6 +26,6 @@ export default function CheckoutCancelPage() {
           }
         />
       </div>
-    </div>
+    </Container>
   );
 }

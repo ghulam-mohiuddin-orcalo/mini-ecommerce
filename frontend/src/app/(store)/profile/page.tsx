@@ -11,9 +11,10 @@ import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { OrderStatusBadge } from '@/components/store/OrderStatusBadge';
 import { AddressForm } from '@/components/store/AddressForm';
+import { Container } from '@/components/store/Container';
 import { formatDate, formatPrice } from '@/lib/format';
 import { ApiError } from '@/lib/api';
-import { useMe } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { useMyOrders } from '@/lib/hooks/useOrders';
 import {
   useAddresses,
@@ -31,24 +32,11 @@ function initialsOf(user: User): string {
 }
 
 export default function ProfilePage() {
-  const { data: user, isLoading: userLoading } = useMe();
+  const { user, gate } = useRequireAuth();
 
-  if (userLoading) return <Shell><ProfileSkeleton /></Shell>;
+  if (gate) return <Shell>{gate}</Shell>;
 
-  if (!user) {
-    return (
-      <Shell>
-        <EmptyState
-          icon={<Icon name="user" size={28} />}
-          title="Sign in to view your profile"
-          description="Your account overview, orders, and saved addresses live here."
-          action={<Link href="/login"><Button>Sign in</Button></Link>}
-        />
-      </Shell>
-    );
-  }
-
-  return <Shell><ProfileContent user={user} /></Shell>;
+  return <Shell><ProfileContent user={user as User} /></Shell>;
 }
 
 function ProfileContent({ user }: { user: User }) {
@@ -484,19 +472,9 @@ function InfoRow({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">{children}</div>;
-}
-
-function ProfileSkeleton() {
   return (
-    <div className="flex flex-col gap-8">
-      <Skeleton className="h-10 w-48" />
-      <Skeleton className="h-32 w-full rounded-2xl" />
-      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 w-full rounded-xl" />
-        ))}
-      </div>
-    </div>
+    <Container width="content" className="py-8">
+      {children}
+    </Container>
   );
 }

@@ -6,37 +6,33 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Icon } from '@/components/ui/Icon';
 import { OrderStatusBadge } from '@/components/store/OrderStatusBadge';
+import { Container } from '@/components/store/Container';
 import { formatDate, formatPrice } from '@/lib/format';
-import { useMe } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { useMyOrders } from '@/lib/hooks/useOrders';
 import type { Order } from '@/lib/types';
 
 const MAX_THUMBS = 4;
 
 export default function OrdersPage() {
-  const { data: user, isLoading: userLoading } = useMe();
+  const { user, gate } = useRequireAuth();
   const { data: orders, isLoading, isError, refetch } = useMyOrders(Boolean(user));
 
+  if (gate) return gate;
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <Container width="narrow" className="py-8">
       <div className="pp-rise mb-6">
         <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink">Your orders</h1>
         <p className="mt-1.5 text-muted">Track current orders and revisit past purchases.</p>
       </div>
 
-      {userLoading || (user && isLoading) ? (
+      {isLoading ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-28 w-full rounded-xl" />
           ))}
         </div>
-      ) : !user ? (
-        <EmptyState
-          icon={<Icon name="bag" size={28} />}
-          title="Sign in to view your orders"
-          description="Your order history and tracking live here."
-          action={<Link href="/login"><Button>Sign in</Button></Link>}
-        />
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : !orders || orders.length === 0 ? (
@@ -55,7 +51,7 @@ export default function OrdersPage() {
           ))}
         </ul>
       )}
-    </div>
+    </Container>
   );
 }
 

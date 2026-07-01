@@ -1,18 +1,17 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { fieldClasses } from '@/components/ui/Input';
 import { Toggle } from '@/components/ui/Toggle';
-import { Skeleton } from '@/components/ui/Skeleton';
-import { EmptyState } from '@/components/ui/States';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
+import { Container } from '@/components/store/Container';
 import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
-import { useMe, useLogout } from '@/lib/hooks/useAuth';
+import { useLogout } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { usePreferences, type ThemePreference } from '@/lib/hooks/usePreferences';
 import { useChangePassword, useForgotPassword } from '@/lib/hooks/usePasswordReset';
 import type { User } from '@/lib/types';
@@ -42,35 +41,11 @@ function passwordScore(pw: string): number {
 }
 
 export default function SettingsPage() {
-  const { data: user, isLoading } = useMe();
+  const { user, gate } = useRequireAuth();
 
-  if (isLoading) {
-    return (
-      <Shell>
-        <Skeleton className="mb-8 h-10 w-40" />
-        <div className="flex flex-col gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 w-full rounded-2xl" />
-          ))}
-        </div>
-      </Shell>
-    );
-  }
+  if (gate) return <Shell>{gate}</Shell>;
 
-  if (!user) {
-    return (
-      <Shell>
-        <EmptyState
-          icon={<Icon name="lock" size={28} />}
-          title="Sign in to manage settings"
-          description="Your preferences and security options live here."
-          action={<Link href="/login"><Button>Sign in</Button></Link>}
-        />
-      </Shell>
-    );
-  }
-
-  return <Shell><SettingsContent user={user} /></Shell>;
+  return <Shell><SettingsContent user={user as User} /></Shell>;
 }
 
 function SettingsContent({ user }: { user: User }) {
@@ -471,6 +446,10 @@ function PasswordField({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">{children}</div>;
+  return (
+    <Container width="narrow" className="py-8">
+      {children}
+    </Container>
+  );
 }
 

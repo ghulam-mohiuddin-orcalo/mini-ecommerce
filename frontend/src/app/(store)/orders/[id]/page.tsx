@@ -9,10 +9,11 @@ import { EmptyState, ErrorState } from '@/components/ui/States';
 import { Icon } from '@/components/ui/Icon';
 import { OrderStatusBadge } from '@/components/store/OrderStatusBadge';
 import { OrderTimeline } from '@/components/store/OrderTimeline';
+import { Container } from '@/components/store/Container';
 import { RecommendationsSection } from '@/components/store/RecommendationsSection';
 import { ApiError } from '@/lib/api';
 import { formatDate, formatPrice } from '@/lib/format';
-import { useMe } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { useOrder } from '@/lib/hooks/useOrders';
 import { useRecommendations } from '@/lib/hooks/useRecommendations';
 
@@ -20,28 +21,21 @@ function OrderDetail() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const justPlaced = searchParams.get('placed') === '1';
-  const { data: user, isLoading: userLoading } = useMe();
+  const { user, gate } = useRequireAuth();
   const { data: order, isLoading, isError, error, refetch } = useOrder(params.id, Boolean(user));
   const recs = useRecommendations(user?.id ?? null);
 
   const notFound = isError && error instanceof ApiError && error.status === 404;
 
-  if (userLoading || (user && isLoading)) {
+  if (gate) return gate;
+
+  if (isLoading) {
     return (
       <div className="flex flex-col gap-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-24 w-full rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
-    );
-  }
-  if (!user) {
-    return (
-      <EmptyState
-        icon={<Icon name="lock" size={28} />}
-        title="Sign in to view this order"
-        action={<Link href="/login"><Button>Sign in</Button></Link>}
-      />
     );
   }
   if (notFound) {
@@ -176,10 +170,10 @@ function OrderDetail() {
 
 export default function OrderDetailPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <Container width="narrow" className="py-8">
       <Suspense fallback={<Skeleton className="h-64 w-full" />}>
         <OrderDetail />
       </Suspense>
-    </div>
+    </Container>
   );
 }

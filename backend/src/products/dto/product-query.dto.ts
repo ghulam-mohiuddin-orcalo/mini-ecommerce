@@ -37,6 +37,18 @@ export class ProductQueryDto {
   @Min(0)
   maxPrice?: number;
 
+  @ApiPropertyOptional({
+    description: 'Minimum average customer rating, 1–5 (inclusive). Products with no reviews are excluded.',
+    minimum: 1,
+    maximum: 5,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  minRating?: number;
+
   @ApiPropertyOptional({ enum: ProductSort, default: ProductSort.NEWEST })
   @IsOptional()
   @IsEnum(ProductSort)

@@ -12,6 +12,7 @@ export function useProducts(query: ProductQuery) {
           category: query.category,
           minPrice: query.minPrice,
           maxPrice: query.maxPrice,
+          minRating: query.minRating,
           sort: query.sort,
           page: query.page,
           pageSize: query.pageSize,
@@ -26,6 +27,17 @@ export function useProduct(id: string) {
     queryKey: ['product', id],
     queryFn: () => apiFetch<Product>(`/products/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+export function useBestSellers(limit = 4, windowDays = 90) {
+  return useQuery({
+    queryKey: ['products', 'best-sellers', limit, windowDays],
+    queryFn: () =>
+      apiFetch<Product[]>(
+        `/products/best-sellers${toQueryString({ limit, windowDays })}`,
+      ),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -33,6 +33,23 @@ export class ProductsService {
     const where = this.buildWhere(query);
     const orderBy = this.buildOrderBy(query.sort);
 
+    // Rating is an aggregate over reviews, not a column, so it can't live in `buildWhere`.
+    // Resolve the set of product ids whose average rating meets the threshold, then constrain
+    // the listing by id. This keeps pagination/total correct across the whole catalog (the old
+    // client-side filter only narrowed the current page, hiding matches on other pages).
+    if (query.minRating !== undefined) {
+      const matches = await this.prisma.review.groupBy({
+        by: ['productId'],
+        _avg: { rating: true },
+        having: { rating: { _avg: { gte: query.minRating } } },
+      });
+      const matchingIds = matches.map((m) => m.productId);
+      if (matchingIds.length === 0) {
+        return { data: [], meta: { page, pageSize, total: 0, totalPages: 0 } };
+      }
+      where.id = { in: matchingIds };
+    }
+
     const [items, total] = await this.prisma.$transaction([
       this.prisma.product.findMany({
         where,
@@ -70,6 +87,83 @@ export class ProductsService {
       orderBy: { category: 'asc' },
     });
     return rows.map((r) => r.category);
+  }
+
+  /**
+   * Public best sellers: real paid demand only, no badge/manual fallback.
+   * Ranking is explainable and stable:
+   * units sold in the rolling window → revenue → rating average → rating count → newest.
+   */
+  async findBestSellers(limit = 4, windowDays = 90): Promise<ProductResponseDto[]> {
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const grouped = await this.prisma.orderItem.groupBy({
+      by: ['productId'],
+      where: {
+        order: {
+          status: { not: OrderStatus.CANCELLED },
+          paidAt: { not: null },
+          createdAt: { gte: since },
+        },
+      },
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: limit * 4,
+    });
+
+    if (grouped.length === 0) return [];
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        id: { in: grouped.map((g) => g.productId) },
+        isActive: true,
+        OR: [{ stock: { gt: 0 } }, { variants: { some: { isActive: true, stock: { gt: 0 } } } }],
+      },
+    });
+    const productById = new Map(products.map((p) => [p.id, p]));
+    const candidateIds = products.map((p) => p.id);
+    const enrichmentById = await this.buildEnrichment(candidateIds);
+    const unitsById = new Map(grouped.map((g) => [g.productId, g._sum.quantity ?? 0]));
+    const revenueById = new Map<string, number>();
+
+    const revenueRows = await this.prisma.orderItem.findMany({
+      where: {
+        productId: { in: candidateIds },
+        order: {
+          status: { not: OrderStatus.CANCELLED },
+          paidAt: { not: null },
+          createdAt: { gte: since },
+        },
+      },
+      select: { productId: true, unitPriceCents: true, quantity: true },
+    });
+
+    for (const row of revenueRows) {
+      revenueById.set(
+        row.productId,
+        (revenueById.get(row.productId) ?? 0) + row.unitPriceCents * row.quantity,
+      );
+    }
+
+    return products
+      .sort((a, b) => {
+        const byUnits = (unitsById.get(b.id) ?? 0) - (unitsById.get(a.id) ?? 0);
+        if (byUnits !== 0) return byUnits;
+
+        const byRevenue = (revenueById.get(b.id) ?? 0) - (revenueById.get(a.id) ?? 0);
+        if (byRevenue !== 0) return byRevenue;
+
+        const aRating = enrichmentById.get(a.id)?.ratingAvg ?? 0;
+        const bRating = enrichmentById.get(b.id)?.ratingAvg ?? 0;
+        if (bRating !== aRating) return bRating - aRating;
+
+        const aRatingCount = enrichmentById.get(a.id)?.ratingCount ?? 0;
+        const bRatingCount = enrichmentById.get(b.id)?.ratingCount ?? 0;
+        if (bRatingCount !== aRatingCount) return bRatingCount - aRatingCount;
+
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      })
+      .slice(0, limit)
+      .map((p) => toProductResponse(p, enrichmentById.get(p.id)));
   }
 
   /**

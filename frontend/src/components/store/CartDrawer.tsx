@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { PriceTag } from '@/components/ui/PriceTag';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { formatPrice } from '@/lib/format';
+import { signinHref } from '@/lib/authNav';
 import { useMe } from '@/lib/hooks/useAuth';
 import {
   useCart,
@@ -220,7 +221,7 @@ function CartDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             description="Your cart syncs to your account so it follows you across devices."
             icon={<Icon name="cart" size={26} />}
             action={
-              <Link href="/login" onClick={onClose}>
+              <Link href={signinHref('/cart')} onClick={onClose}>
                 <Button>Sign in</Button>
               </Link>
             }

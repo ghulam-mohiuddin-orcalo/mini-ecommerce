@@ -8,6 +8,7 @@ import { PriceTag } from '@/components/ui/PriceTag';
 import { Rating } from '@/components/ui/Rating';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/cn';
+import { signinHref } from '@/lib/authNav';
 import { useMe } from '@/lib/hooks/useAuth';
 import { useAddToCart } from '@/lib/hooks/useCart';
 import { useIsWishlisted, useToggleWishlist } from '@/lib/hooks/useWishlist';
@@ -70,7 +71,7 @@ export function ProductCard({ product }: { product: CardProduct | WishlistProduc
     e.stopPropagation();
     if (!signedIn) {
       toast({ variant: 'default', title: 'Sign in to save favourites', description: 'Your wishlist syncs across devices.' });
-      router.push('/login');
+      router.push(signinHref(`/products/${product.id}`));
       return;
     }
     toggleWishlist.mutate(product.id, {
@@ -88,7 +89,7 @@ export function ProductCard({ product }: { product: CardProduct | WishlistProduc
     e.stopPropagation();
     if (!signedIn) {
       toast({ variant: 'default', title: 'Sign in to add to your bag' });
-      router.push('/login');
+      router.push(signinHref(`/products/${product.id}`));
       return;
     }
     if (hasVariants) {

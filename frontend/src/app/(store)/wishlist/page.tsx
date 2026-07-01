@@ -9,48 +9,43 @@ import { PriceTag } from '@/components/ui/PriceTag';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { EmptyState, ErrorState } from '@/components/ui/States';
+import { Container } from '@/components/store/Container';
 import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
+import { signinHref } from '@/lib/authNav';
 import { useMe } from '@/lib/hooks/useAuth';
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth';
 import { useAddToCart } from '@/lib/hooks/useCart';
 import { useRemoveFromWishlist, useWishlist } from '@/lib/hooks/useWishlist';
 import type { WishlistItem } from '@/lib/types';
 
 export default function WishlistPage() {
-  const { data: user, isLoading: userLoading } = useMe();
-  const signedIn = Boolean(user);
-  const { data, isLoading, isError, refetch } = useWishlist(signedIn);
+  const { user, gate } = useRequireAuth();
+  const { data, isLoading, isError, refetch } = useWishlist(Boolean(user));
 
   const items = data?.items ?? [];
 
+  if (gate) return gate;
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <Container className="py-8">
       <div className="mb-6">
         <h1 className="font-serif text-[32px] font-medium tracking-tight text-ink sm:text-[38px]">
           Your wishlist
         </h1>
         <p className="mt-1.5 text-sm text-muted">
-          {data ? `${data.itemCount} saved item${data.itemCount === 1 ? '' : 's'}` : 'Things you love, saved for later.'}
+          {data
+            ? `${data.itemCount} saved item${data.itemCount === 1 ? '' : 's'}`
+            : 'Things you love, saved for later.'}
         </p>
       </div>
 
-      {userLoading || (signedIn && isLoading) ? (
+      {isLoading ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-72 w-full rounded-xl" />
           ))}
         </div>
-      ) : !signedIn ? (
-        <EmptyState
-          title="Sign in to view your wishlist"
-          description="Your saved items sync across devices when you’re signed in."
-          icon={<Icon name="heart" size={26} />}
-          action={
-            <Link href="/login">
-              <Button>Sign in</Button>
-            </Link>
-          }
-        />
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : items.length === 0 ? (
@@ -71,7 +66,7 @@ export default function WishlistPage() {
           ))}
         </div>
       )}
-    </div>
+    </Container>
   );
 }
 
@@ -94,7 +89,7 @@ function WishlistCard({ item }: { item: WishlistItem }) {
 
   function onAddToBag() {
     if (!user) {
-      router.push('/login');
+      router.push(signinHref('/wishlist'));
       return;
     }
     addToCart.mutate(

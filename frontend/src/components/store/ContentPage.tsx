@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useContent } from '@/lib/hooks/useSiteContent';
 import { formatDate } from '@/lib/format';
+import { Container } from './Container';
 import { Prose } from './Prose';
 
 /**
@@ -29,7 +30,7 @@ export function ContentPage({
   }, [data?.title]);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
+    <Container width="narrow" className="py-14 sm:py-20">
       <Breadcrumbs
         className="mb-8"
         items={[{ label: 'Home', href: '/' }, { label: breadcrumbLabel }]}
@@ -66,7 +67,7 @@ export function ContentPage({
           </div>
         </article>
       )}
-    </div>
+    </Container>
   );
 }
 
