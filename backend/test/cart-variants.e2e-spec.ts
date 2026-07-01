@@ -70,12 +70,15 @@ describe('Cart variants (e2e)', () => {
     await prisma.order.deleteMany();
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
     await prisma.user.deleteMany();
+
+    const apparelCat = await prisma.category.create({ data: { name: 'Apparel', slug: 'apparel', isActive: true } });
 
     const product = await prisma.product.create({
       data: {
         sku: 'CV-1', name: 'Variant Tee', description: 'x', priceCents: PRODUCT_PRICE,
-        imageUrl: 'x', category: 'Apparel', stock: PRODUCT_STOCK, isActive: true,
+        imageUrl: 'x', categoryId: apparelCat.id, stock: PRODUCT_STOCK, isActive: true,
         variants: {
           create: [
             { sku: 'CV-1-S', label: 'Small', size: 'S', priceCents: VAR_S_PRICE, stock: VAR_S_STOCK, position: 0, isActive: true },
@@ -94,7 +97,7 @@ describe('Cart variants (e2e)', () => {
     const other = await prisma.product.create({
       data: {
         sku: 'CV-2', name: 'Other', description: 'x', priceCents: 1000, imageUrl: 'x',
-        category: 'Apparel', stock: 50, isActive: true,
+        categoryId: apparelCat.id, stock: 50, isActive: true,
         variants: { create: [{ sku: 'CV-2-A', label: 'A', priceCents: 1000, stock: 5, isActive: true }] },
       },
       include: { variants: true },

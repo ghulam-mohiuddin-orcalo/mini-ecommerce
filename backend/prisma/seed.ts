@@ -9,7 +9,7 @@
  *
  * Money is in integer cents throughout. Order items snapshot product fields.
  */
-import { PrismaClient, OrderStatus, Role, ArticleStatus, type Product } from '@prisma/client';
+import { PrismaClient, OrderStatus, Role, ArticleStatus, type Product, type Category } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -21,45 +21,64 @@ const daysAgo = (n: number): Date => new Date(Date.now() - n * DAY_MS);
 const ADMIN_EMAIL = 'admin@shop.test';
 const CUSTOMER_EMAIL = 'customer@shop.test';
 
+// Default storefront categories. `slug` is the idempotent upsert key (and the storefront
+// URL key); it must match the `categorySlug` referenced by every product below. Covers all
+// categories the PRODUCTS list uses, plus `accessories` from the default set.
+interface CategorySeed {
+  name: string;
+  slug: string;
+  description: string;
+  sortOrder: number;
+}
+
+const CATEGORIES: CategorySeed[] = [
+  { name: 'Apparel', slug: 'apparel', description: 'Everyday clothing and accessories built from soft, durable fabrics.', sortOrder: 0 },
+  { name: 'Home', slug: 'home', description: 'Considered homeware for calmer, more comfortable living spaces.', sortOrder: 1 },
+  { name: 'Electronics', slug: 'electronics', description: 'Practical gadgets and audio gear for work, rest, and play.', sortOrder: 2 },
+  { name: 'Books', slug: 'books', description: 'Stories and guides to slow down with — fiction and how-to alike.', sortOrder: 3 },
+  { name: 'Outdoors', slug: 'outdoors', description: 'Gear for the trail, the campsite, and everywhere in between.', sortOrder: 4 },
+  { name: 'Accessories', slug: 'accessories', description: 'Finishing touches and small essentials that complete the everyday.', sortOrder: 5 },
+];
+
 interface ProductSeed {
   sku: string;
   name: string;
   description: string;
   priceCents: number;
-  category: string;
+  categorySlug: string;
   stock: number;
 }
 
 const PRODUCTS: ProductSeed[] = [
   // Apparel
-  { sku: 'TEE-001', name: 'Classic Cotton Tee', description: 'A soft, breathable everyday t-shirt in pre-shrunk cotton.', priceCents: 1999, category: 'Apparel', stock: 120 },
-  { sku: 'HOOD-001', name: 'Pine Fleece Hoodie', description: 'Cozy brushed-fleece hoodie with a roomy front pocket.', priceCents: 4500, category: 'Apparel', stock: 60 },
-  { sku: 'SOCK-001', name: 'Merino Wool Socks', description: 'Temperature-regulating merino socks, pack of three.', priceCents: 1290, category: 'Apparel', stock: 200 },
-  { sku: 'CAP-001', name: 'Trucker Cap', description: 'Classic five-panel trucker cap with a breathable mesh back.', priceCents: 1699, category: 'Apparel', stock: 110 },
-  { sku: 'JEAN-001', name: 'Slim-Fit Jeans', description: 'Mid-rise stretch denim in a versatile slim fit.', priceCents: 5499, category: 'Apparel', stock: 65 },
-  { sku: 'SUNG-001', name: 'Polarized Sunglasses', description: 'UV400 polarized lenses in a timeless acetate frame.', priceCents: 3999, category: 'Apparel', stock: 70 },
+  { sku: 'TEE-001', name: 'Classic Cotton Tee', description: 'A soft, breathable everyday t-shirt in pre-shrunk cotton.', priceCents: 1999, categorySlug: 'apparel', stock: 120 },
+  { sku: 'HOOD-001', name: 'Pine Fleece Hoodie', description: 'Cozy brushed-fleece hoodie with a roomy front pocket.', priceCents: 4500, categorySlug: 'apparel', stock: 60 },
+  { sku: 'SOCK-001', name: 'Merino Wool Socks', description: 'Temperature-regulating merino socks, pack of three.', priceCents: 1290, categorySlug: 'apparel', stock: 200 },
+  { sku: 'CAP-001', name: 'Trucker Cap', description: 'Classic five-panel trucker cap with a breathable mesh back.', priceCents: 1699, categorySlug: 'apparel', stock: 110 },
+  { sku: 'JEAN-001', name: 'Slim-Fit Jeans', description: 'Mid-rise stretch denim in a versatile slim fit.', priceCents: 5499, categorySlug: 'apparel', stock: 65 },
+  { sku: 'SUNG-001', name: 'Polarized Sunglasses', description: 'UV400 polarized lenses in a timeless acetate frame.', priceCents: 3999, categorySlug: 'apparel', stock: 70 },
   // Home
-  { sku: 'MUG-001', name: 'Stoneware Mug', description: 'Hand-glazed 12oz stoneware mug, microwave safe.', priceCents: 1450, category: 'Home', stock: 80 },
-  { sku: 'CNDL-001', name: 'Soy Wax Candle', description: 'Hand-poured soy candle with a cedar & sage scent.', priceCents: 1800, category: 'Home', stock: 3 }, // intentionally low stock (edge-case demos)
-  { sku: 'TOWL-001', name: 'Linen Hand Towel', description: 'Stonewashed pure-linen hand towel, quick drying.', priceCents: 2200, category: 'Home', stock: 45 },
-  { sku: 'PLNT-001', name: 'Ceramic Planter', description: 'Glazed ceramic planter with a drainage tray, fits 4in pots.', priceCents: 1650, category: 'Home', stock: 95 },
-  { sku: 'BOWL-001', name: 'Stoneware Bowl Set', description: 'Set of four reactive-glaze stoneware bowls, dishwasher safe.', priceCents: 3899, category: 'Home', stock: 50 },
+  { sku: 'MUG-001', name: 'Stoneware Mug', description: 'Hand-glazed 12oz stoneware mug, microwave safe.', priceCents: 1450, categorySlug: 'home', stock: 80 },
+  { sku: 'CNDL-001', name: 'Soy Wax Candle', description: 'Hand-poured soy candle with a cedar & sage scent.', priceCents: 1800, categorySlug: 'home', stock: 3 }, // intentionally low stock (edge-case demos)
+  { sku: 'TOWL-001', name: 'Linen Hand Towel', description: 'Stonewashed pure-linen hand towel, quick drying.', priceCents: 2200, categorySlug: 'home', stock: 45 },
+  { sku: 'PLNT-001', name: 'Ceramic Planter', description: 'Glazed ceramic planter with a drainage tray, fits 4in pots.', priceCents: 1650, categorySlug: 'home', stock: 95 },
+  { sku: 'BOWL-001', name: 'Stoneware Bowl Set', description: 'Set of four reactive-glaze stoneware bowls, dishwasher safe.', priceCents: 3899, categorySlug: 'home', stock: 50 },
   // Electronics
-  { sku: 'BUDS-001', name: 'Wireless Earbuds', description: 'Bluetooth 5.3 earbuds with active noise cancellation.', priceCents: 7999, category: 'Electronics', stock: 35 },
-  { sku: 'LAMP-001', name: 'LED Desk Lamp', description: 'Dimmable LED desk lamp with adjustable color temperature.', priceCents: 3499, category: 'Electronics', stock: 22 },
-  { sku: 'CHRG-001', name: 'USB-C Charger', description: '65W GaN fast charger with two USB-C ports.', priceCents: 2599, category: 'Electronics', stock: 150 },
-  { sku: 'KEYB-001', name: 'Wireless Keyboard', description: 'Low-profile wireless keyboard with a rechargeable battery.', priceCents: 5999, category: 'Electronics', stock: 40 },
-  { sku: 'MOUS-001', name: 'Wireless Mouse', description: 'Ergonomic 2.4GHz wireless mouse with silent clicks.', priceCents: 2899, category: 'Electronics', stock: 85 },
-  { sku: 'SPKR-001', name: 'Bluetooth Speaker', description: 'Portable IPX7 waterproof speaker with 12-hour playtime.', priceCents: 6499, category: 'Electronics', stock: 30 },
-  { sku: 'WTCH-001', name: 'Smart Watch', description: 'Fitness smartwatch with heart-rate tracking and GPS.', priceCents: 9999, category: 'Electronics', stock: 25 },
+  { sku: 'BUDS-001', name: 'Wireless Earbuds', description: 'Bluetooth 5.3 earbuds with active noise cancellation.', priceCents: 7999, categorySlug: 'electronics', stock: 35 },
+  { sku: 'LAMP-001', name: 'LED Desk Lamp', description: 'Dimmable LED desk lamp with adjustable color temperature.', priceCents: 3499, categorySlug: 'electronics', stock: 22 },
+  { sku: 'CHRG-001', name: 'USB-C Charger', description: '65W GaN fast charger with two USB-C ports.', priceCents: 2599, categorySlug: 'electronics', stock: 150 },
+  { sku: 'KEYB-001', name: 'Wireless Keyboard', description: 'Low-profile wireless keyboard with a rechargeable battery.', priceCents: 5999, categorySlug: 'electronics', stock: 40 },
+  { sku: 'MOUS-001', name: 'Wireless Mouse', description: 'Ergonomic 2.4GHz wireless mouse with silent clicks.', priceCents: 2899, categorySlug: 'electronics', stock: 85 },
+  { sku: 'SPKR-001', name: 'Bluetooth Speaker', description: 'Portable IPX7 waterproof speaker with 12-hour playtime.', priceCents: 6499, categorySlug: 'electronics', stock: 30 },
+  { sku: 'WTCH-001', name: 'Smart Watch', description: 'Fitness smartwatch with heart-rate tracking and GPS.', priceCents: 9999, categorySlug: 'electronics', stock: 25 },
   // Books
-  { sku: 'BOOK-001', name: 'The Pragmatic Shelf', description: 'A bestselling novel about craft, patience, and woodwork.', priceCents: 1599, category: 'Books', stock: 75 },
-  { sku: 'BOOK-002', name: 'Cooking with Pine', description: 'Seasonal recipes for the adventurous home cook.', priceCents: 2499, category: 'Books', stock: 40 },
+  { sku: 'BOOK-001', name: 'The Pragmatic Shelf', description: 'A bestselling novel about craft, patience, and woodwork.', priceCents: 1599, categorySlug: 'books', stock: 75 },
+  { sku: 'BOOK-002', name: 'Cooking with Pine', description: 'Seasonal recipes for the adventurous home cook.', priceCents: 2499, categorySlug: 'books', stock: 40 },
   // Outdoors
-  { sku: 'BOTL-001', name: 'Insulated Water Bottle', description: 'Double-walled steel bottle keeps drinks cold for 24h.', priceCents: 2999, category: 'Outdoors', stock: 90 },
-  { sku: 'BPK-001', name: 'Trail Daypack', description: '22L weather-resistant daypack with a padded laptop sleeve.', priceCents: 5999, category: 'Outdoors', stock: 18 },
-  { sku: 'TENT-001', name: '2-Person Tent', description: 'Lightweight three-season backpacking tent.', priceCents: 12999, category: 'Outdoors', stock: 8 },
-  { sku: 'STOOL-001', name: 'Folding Camp Stool', description: 'Compact tripod camp stool with a packable carry strap.', priceCents: 3299, category: 'Outdoors', stock: 55 },
+  { sku: 'BOTL-001', name: 'Insulated Water Bottle', description: 'Double-walled steel bottle keeps drinks cold for 24h.', priceCents: 2999, categorySlug: 'outdoors', stock: 90 },
+  { sku: 'BPK-001', name: 'Trail Daypack', description: '22L weather-resistant daypack with a padded laptop sleeve.', priceCents: 5999, categorySlug: 'outdoors', stock: 18 },
+  { sku: 'TENT-001', name: '2-Person Tent', description: 'Lightweight three-season backpacking tent.', priceCents: 12999, categorySlug: 'outdoors', stock: 8 },
+  { sku: 'STOOL-001', name: 'Folding Camp Stool', description: 'Compact tripod camp stool with a packable carry strap.', priceCents: 3299, categorySlug: 'outdoors', stock: 55 },
 ];
 
 /**
@@ -313,17 +332,34 @@ async function main(): Promise<void> {
     create: { email: CUSTOMER_EMAIL, name: 'Casey Customer', role: Role.CUSTOMER, passwordHash: customerHash },
   });
 
-  // 2) Products (upsert by unique SKU) ------------------------------------------------
+  // 2) Categories (upsert by unique slug) — MUST run before products so the FK resolves --
+  const categoriesBySlug = new Map<string, Category>();
+  for (const c of CATEGORIES) {
+    const category = await prisma.category.upsert({
+      where: { slug: c.slug },
+      update: { name: c.name, description: c.description, sortOrder: c.sortOrder, isActive: true },
+      create: { name: c.name, slug: c.slug, description: c.description, sortOrder: c.sortOrder, isActive: true },
+    });
+    categoriesBySlug.set(c.slug, category);
+  }
+  const requireCategory = (slug: string): Category => {
+    const category = categoriesBySlug.get(slug);
+    if (!category) throw new Error(`Seed error: unknown category slug ${slug}`);
+    return category;
+  };
+
+  // 3) Products (upsert by unique SKU) ------------------------------------------------
   for (const p of PRODUCTS) {
     // compareAtPriceCents is the "was" price; null clears any prior sale on re-seed.
     const compareAtPriceCents = SALE_PRICES[p.sku] ?? null;
+    const category = requireCategory(p.categorySlug);
     const data = {
       name: p.name,
       description: p.description,
       priceCents: p.priceCents,
       compareAtPriceCents,
       imageUrl: imageFor(p.sku),
-      category: p.category,
+      categoryId: category.id,
       stock: p.stock,
       isActive: true,
     };
@@ -340,6 +376,14 @@ async function main(): Promise<void> {
     const product = bySku.get(sku);
     if (!product) throw new Error(`Seed error: unknown SKU ${sku}`);
     return product;
+  };
+  // Resolve a product's category NAME for the immutable order-item snapshot
+  // (OrderItem.productCategory keeps history readable even if the category is later renamed).
+  const categoriesById = new Map([...categoriesBySlug.values()].map((c) => [c.id, c]));
+  const categoryNameFor = (product: Product): string => {
+    const category = categoriesById.get(product.categoryId);
+    if (!category) throw new Error(`Seed error: product ${product.sku} has unknown categoryId`);
+    return category.name;
   };
 
   // 2a) Product gallery images (idempotent: reset per product, then recreate) ----------
@@ -393,7 +437,7 @@ async function main(): Promise<void> {
         productId: product.id,
         productName: product.name,
         productImageUrl: product.imageUrl,
-        productCategory: product.category,
+        productCategory: categoryNameFor(product),
         unitPriceCents: product.priceCents,
         quantity: line.quantity,
       };
@@ -507,6 +551,7 @@ async function main(): Promise<void> {
   // 10) Report ------------------------------------------------------------------------
   const [
     userCount,
+    categoryCount,
     productCount,
     orderCount,
     orderItemCount,
@@ -522,6 +567,7 @@ async function main(): Promise<void> {
     contentBlockCount,
   ] = await Promise.all([
     prisma.user.count(),
+    prisma.category.count(),
     prisma.product.count(),
     prisma.order.count(),
     prisma.orderItem.count(),
@@ -540,6 +586,7 @@ async function main(): Promise<void> {
   /* eslint-disable no-console */
   console.log('Seed complete:');
   console.log(`  users:       ${userCount} (admin: ${admin.email}, customer: ${customer.email})`);
+  console.log(`  categories:  ${categoryCount}`);
   console.log(`  products:    ${productCount} (+ ${imageCount} gallery images, ${variantCount} variants)`);
   console.log(`  orders:      ${orderCount} (+ ${orderItemCount} order items)`);
   console.log(`  carts:       ${cartCount} (+ ${cartItemCount} cart items)`);

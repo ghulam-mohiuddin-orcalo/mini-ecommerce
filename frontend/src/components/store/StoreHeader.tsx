@@ -425,8 +425,8 @@ export function StoreHeader() {
                   ) : (
                     megaCategories.map((category, i) => (
                       <Link
-                        key={category}
-                        href={`/products?category=${encodeURIComponent(category)}`}
+                        key={category.id}
+                        href={`/products?category=${encodeURIComponent(category.slug)}`}
                         className="v-mega-cat"
                         style={{ textDecoration: 'none' }}
                       >
@@ -445,11 +445,11 @@ export function StoreHeader() {
                             flexShrink: 0,
                           }}
                         >
-                          {category.charAt(0).toUpperCase()}
+                          {category.name.charAt(0).toUpperCase()}
                         </span>
                         <span style={{ minWidth: 0 }}>
                           <span style={{ display: 'block', fontWeight: 700, fontSize: 14, color: 'var(--ink)', textTransform: 'capitalize' }}>
-                            {category}
+                            {category.name}
                           </span>
                           <span style={{ display: 'block', fontSize: 12, color: 'var(--muted)' }}>Shop now</span>
                         </span>
@@ -553,15 +553,15 @@ export function StoreHeader() {
                   <span style={{ fontSize: 12.5, color: 'var(--faint)', fontWeight: 600, marginRight: 4 }}>Popular</span>
                   {megaCategories.slice(0, 5).map((category) => (
                     <button
-                      key={category}
+                      key={category.id}
                       type="button"
                       className="v-search-chip"
                       onClick={() => {
                         setSearchOpen(false);
-                        router.push(`/products?category=${encodeURIComponent(category)}`);
+                        router.push(`/products?category=${encodeURIComponent(category.slug)}`);
                       }}
                     >
-                      {category}
+                      {category.name}
                     </button>
                   ))}
                 </div>
@@ -597,12 +597,12 @@ export function StoreHeader() {
             <div className="flex flex-col gap-1">
               {megaCategories.map((category) => (
                 <Link
-                  key={category}
-                  href={`/products?category=${encodeURIComponent(category)}`}
+                  key={category.id}
+                  href={`/products?category=${encodeURIComponent(category.slug)}`}
                   onClick={() => setMobileOpen(false)}
                   className="rounded-lg px-3 py-2 text-sm font-semibold capitalize text-ink-soft transition-colors hover:bg-paper-2 hover:text-ink"
                 >
-                  {category}
+                  {category.name}
                 </Link>
               ))}
             </div>

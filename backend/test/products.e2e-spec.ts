@@ -13,6 +13,7 @@ describe('Products (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let hiddenId: string;
+  const catId: Record<string, string> = {};
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL?.includes('test')) {
@@ -29,13 +30,25 @@ describe('Products (e2e)', () => {
     await prisma.cartItem.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
+
+    // First-class categories (FK from Product). Slugs drive the ?category= filter.
+    for (const [name, slug] of [
+      ['Apparel', 'apparel'],
+      ['Home', 'home'],
+      ['Electronics', 'electronics'],
+      ['Books', 'books'],
+    ] as const) {
+      catId[name] = (await prisma.category.create({ data: { name, slug, isActive: true } })).id;
+    }
+
     await prisma.product.createMany({
       data: [
-        { sku: 'T1', name: 'Alpha Shirt', description: 'A shirt', priceCents: 1000, imageUrl: 'x', category: 'Apparel', stock: 5, isActive: true },
-        { sku: 'T2', name: 'Beta Mug', description: 'A mug', priceCents: 2000, imageUrl: 'x', category: 'Home', stock: 0, isActive: true },
-        { sku: 'T3', name: 'Gamma Lamp', description: 'A lamp', priceCents: 3000, imageUrl: 'x', category: 'Electronics', stock: 10, isActive: true },
-        { sku: 'T4', name: 'Delta Book', description: 'A book', priceCents: 1500, imageUrl: 'x', category: 'Books', stock: 3, isActive: true },
-        { sku: 'T5', name: 'Hidden Item', description: 'Soft-deleted', priceCents: 9999, imageUrl: 'x', category: 'Apparel', stock: 5, isActive: false },
+        { sku: 'T1', name: 'Alpha Shirt', description: 'A shirt', priceCents: 1000, imageUrl: 'x', categoryId: catId.Apparel, stock: 5, isActive: true },
+        { sku: 'T2', name: 'Beta Mug', description: 'A mug', priceCents: 2000, imageUrl: 'x', categoryId: catId.Home, stock: 0, isActive: true },
+        { sku: 'T3', name: 'Gamma Lamp', description: 'A lamp', priceCents: 3000, imageUrl: 'x', categoryId: catId.Electronics, stock: 10, isActive: true },
+        { sku: 'T4', name: 'Delta Book', description: 'A book', priceCents: 1500, imageUrl: 'x', categoryId: catId.Books, stock: 3, isActive: true },
+        { sku: 'T5', name: 'Hidden Item', description: 'Soft-deleted', priceCents: 9999, imageUrl: 'x', categoryId: catId.Apparel, stock: 5, isActive: false },
       ],
     });
     const hidden = await prisma.product.findUniqueOrThrow({ where: { sku: 'T5' } });
@@ -66,6 +79,8 @@ describe('Products (e2e)', () => {
   });
 
   afterAll(async () => {
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany();
     await app?.close();
   });
 
@@ -84,10 +99,19 @@ describe('Products (e2e)', () => {
     expect(res.body.data[0].name).toBe('Alpha Shirt');
   });
 
-  it('filters by category (and still excludes inactive)', async () => {
-    const res = await list('?category=Apparel');
+  it('filters by category slug (and still excludes inactive)', async () => {
+    const res = await list('?category=apparel'); // slug, not the display name
     expect(res.body.meta.total).toBe(1); // Alpha only; Hidden Item is inactive
     expect(res.body.data[0].name).toBe('Alpha Shirt');
+  });
+
+  it('exposes the category as a nested { id, name, slug } object', async () => {
+    const res = await list('?search=alpha');
+    expect(res.body.data[0].category).toEqual({
+      id: catId.Apparel,
+      name: 'Apparel',
+      slug: 'apparel',
+    });
   });
 
   it('filters by price range (cents, inclusive)', async () => {
@@ -177,7 +201,7 @@ describe('Products (e2e)', () => {
                 productId: product.id,
                 productName: product.name,
                 productImageUrl: product.imageUrl,
-                productCategory: product.category,
+                productCategory: 'Snapshot Category', // string snapshot; the live FK is on Product
                 unitPriceCents: product.priceCents,
                 quantity,
               },

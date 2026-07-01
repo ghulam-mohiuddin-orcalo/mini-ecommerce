@@ -48,14 +48,17 @@ describe('Cart (e2e)', () => {
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany(); // delete orders before users (Order→User is Restrict)
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
     await prisma.user.deleteMany();
 
+    const category = await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } });
+
     const product = await prisma.product.create({
-      data: { sku: 'C1', name: 'Cart Widget', description: 'x', priceCents: PRICE, imageUrl: 'x', category: 'Home', stock: STOCK, isActive: true },
+      data: { sku: 'C1', name: 'Cart Widget', description: 'x', priceCents: PRICE, imageUrl: 'x', categoryId: category.id, stock: STOCK, isActive: true },
     });
     productId = product.id;
     const inactive = await prisma.product.create({
-      data: { sku: 'C2', name: 'Gone', description: 'x', priceCents: 500, imageUrl: 'x', category: 'Home', stock: 5, isActive: false },
+      data: { sku: 'C2', name: 'Gone', description: 'x', priceCents: 500, imageUrl: 'x', categoryId: category.id, stock: 5, isActive: false },
     });
     inactiveId = inactive.id;
 

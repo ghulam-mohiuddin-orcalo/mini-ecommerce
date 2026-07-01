@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductQueryDto, ProductSort } from './dto/product-query.dto';
@@ -56,6 +56,7 @@ export class ProductsService {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { category: true },
       }),
       this.prisma.product.count({ where }),
     ]);
@@ -70,23 +71,15 @@ export class ProductsService {
 
   /** Single active product, or 404. Inactive (soft-deleted) products are never exposed. */
   async findOne(id: string): Promise<ProductResponseDto> {
-    const product = await this.prisma.product.findFirst({ where: { id, isActive: true } });
+    const product = await this.prisma.product.findFirst({
+      where: { id, isActive: true },
+      include: { category: true },
+    });
     if (!product) {
       throw new NotFoundException('Product not found');
     }
     const enrichmentById = await this.buildEnrichment([product.id]);
     return toProductResponse(product, enrichmentById.get(product.id));
-  }
-
-  /** Distinct categories among active products (for the catalog filter). */
-  async listCategories(): Promise<string[]> {
-    const rows = await this.prisma.product.findMany({
-      where: { isActive: true },
-      distinct: ['category'],
-      select: { category: true },
-      orderBy: { category: 'asc' },
-    });
-    return rows.map((r) => r.category);
   }
 
   /**
@@ -118,6 +111,7 @@ export class ProductsService {
         isActive: true,
         OR: [{ stock: { gt: 0 } }, { variants: { some: { isActive: true, stock: { gt: 0 } } } }],
       },
+      include: { category: true },
     });
     const productById = new Map(products.map((p) => [p.id, p]));
     const candidateIds = products.map((p) => p.id);
@@ -264,6 +258,7 @@ export class ProductsService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
+          category: true,
           images: { orderBy: { position: 'asc' } },
           variants: { orderBy: { position: 'asc' } },
         },
@@ -282,6 +277,7 @@ export class ProductsService {
    * A duplicate product or variant SKU surfaces as Prisma P2002 -> 409 via the global filter.
    */
   async createProduct(dto: CreateProductDto): Promise<AdminProductResponseDto> {
+    await this.assertCategoryActive(dto.categoryId);
     const { images, variants, ...productData } = dto;
     const product = await this.prisma.$transaction(async (tx) => {
       const created = await tx.product.create({ data: productData });
@@ -325,6 +321,9 @@ export class ProductsService {
    */
   async updateProduct(id: string, dto: UpdateProductDto): Promise<AdminProductResponseDto> {
     await this.ensureExists(id);
+    if (dto.categoryId !== undefined) {
+      await this.assertCategoryActive(dto.categoryId);
+    }
     const { images, variants, ...productData } = dto;
 
     const product = await this.prisma.$transaction(async (tx) => {
@@ -374,7 +373,11 @@ export class ProductsService {
     const product = await this.prisma.product.update({
       where: { id },
       data: { isActive },
-      include: { images: { orderBy: { position: 'asc' } }, variants: { orderBy: { position: 'asc' } } },
+      include: {
+        category: true,
+        images: { orderBy: { position: 'asc' } },
+        variants: { orderBy: { position: 'asc' } },
+      },
     });
     return toAdminProductResponse(product);
   }
@@ -384,6 +387,7 @@ export class ProductsService {
     return tx.product.findUniqueOrThrow({
       where: { id },
       include: {
+        category: true,
         images: { orderBy: { position: 'asc' } },
         variants: { orderBy: { position: 'asc' } },
       },
@@ -397,6 +401,23 @@ export class ProductsService {
     }
   }
 
+  /**
+   * Validate a category reference before a product write. Catches an unknown/soft-hidden category
+   * up front with a clear error, rather than letting a bad FK surface as a Prisma P2003 mid-write.
+   */
+  private async assertCategoryActive(categoryId: string): Promise<void> {
+    const category = await this.prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { isActive: true },
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+    if (!category.isActive) {
+      throw new BadRequestException('Category is not active');
+    }
+  }
+
   /** Reusable WHERE builder — active-only, plus optional search / category / price range. */
   private buildWhere(query: ProductQueryDto): Prisma.ProductWhereInput {
     const where: Prisma.ProductWhereInput = { isActive: true };
@@ -405,7 +426,7 @@ export class ProductsService {
       where.name = { contains: query.search, mode: 'insensitive' };
     }
     if (query.category) {
-      where.category = query.category;
+      where.category = { slug: query.category };
     }
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
       where.priceCents = {

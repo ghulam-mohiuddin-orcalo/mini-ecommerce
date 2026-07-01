@@ -54,6 +54,9 @@ export function ProductCard({ product }: { product: CardProduct | WishlistProduc
   const imageAlt =
     ('images' in product && product.images?.[0]?.alt) || product.name;
 
+  // Full products carry a nested category object; the lean wishlist projection keeps a flat name.
+  const categoryName =
+    typeof product.category === 'string' ? product.category : product.category.name;
   const hasVariants = variants.length > 0;
   const outOfStock = product.stock <= 0;
   const onSale = product.compareAtPriceCents != null && product.compareAtPriceCents > product.priceCents;
@@ -141,7 +144,7 @@ export function ProductCard({ product }: { product: CardProduct | WishlistProduc
 
         <div className="flex flex-1 flex-col gap-1.5 p-4">
           <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted">
-            {product.category}
+            {categoryName}
           </span>
           <h3 className="line-clamp-1 font-bold tracking-tight text-ink">{product.name}</h3>
           {ratingCount > 0 ? (

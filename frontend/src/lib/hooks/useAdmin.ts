@@ -53,7 +53,7 @@ export interface ProductInput {
   priceCents: number;
   compareAtPriceCents?: number | null;
   imageUrl: string;
-  category: string;
+  categoryId: string;
   stock: number;
   images?: ProductImageInput[];
   variants?: ProductVariantInput[];

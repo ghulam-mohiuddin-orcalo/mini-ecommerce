@@ -1,5 +1,39 @@
 export type Role = 'ADMIN' | 'CUSTOMER';
 
+/** First-class category entity (matches the backend CategoryResponseDto). */
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  productCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Lean category reference embedded in a product response. */
+export interface ProductCategoryRef {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/** POST /admin/categories body. */
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+/** PATCH /admin/categories/:id body (any subset). */
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
+
 export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 export interface OrderItem {
@@ -80,7 +114,7 @@ export interface AdminProduct {
   imageUrl: string;
   images: AdminProductImage[];
   variants: AdminProductVariant[];
-  category: string;
+  category: ProductCategoryRef;
   stock: number;
   isActive: boolean;
   createdAt: string;
@@ -140,7 +174,7 @@ export interface Product {
   imageUrl: string;
   images: ProductImage[];
   variants: ProductVariant[];
-  category: string;
+  category: ProductCategoryRef;
   stock: number;
   ratingAvg: number;
   ratingCount: number;

@@ -57,8 +57,10 @@ export class WishlistToggleResponseDto {
   wishlisted!: boolean;
 }
 
-/** A wishlist row joined with its product. */
-export type WishlistItemWithProduct = Prisma.WishlistItemGetPayload<{ include: { product: true } }>;
+/** A wishlist row joined with its product (+ the product's category). */
+export type WishlistItemWithProduct = Prisma.WishlistItemGetPayload<{
+  include: { product: { include: { category: true } } };
+}>;
 
 /** Map a wishlist row (with product) to the lean response shape. */
 export function toWishlistItem(item: WishlistItemWithProduct): WishlistItemDto {
@@ -71,7 +73,7 @@ export function toWishlistItem(item: WishlistItemWithProduct): WishlistItemDto {
       priceCents: item.product.priceCents,
       compareAtPriceCents: item.product.compareAtPriceCents,
       imageUrl: item.product.imageUrl,
-      category: item.product.category,
+      category: item.product.category.name,
       stock: item.product.stock,
     },
   };

@@ -20,7 +20,7 @@ export class WishlistService {
   async getWishlist(userId: string): Promise<WishlistResponseDto> {
     const items = await this.prisma.wishlistItem.findMany({
       where: { userId },
-      include: { product: true },
+      include: { product: { include: { category: true } } },
       orderBy: { createdAt: 'desc' },
     });
     return buildWishlistResponse(items);

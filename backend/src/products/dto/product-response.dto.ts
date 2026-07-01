@@ -1,8 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Product, ProductImage, ProductVariant } from '@prisma/client';
+import { Category, Product, ProductImage, ProductVariant } from '@prisma/client';
 
 /** Derived, never-stored merchandising badges. See `deriveBadges` for the rules. */
 export type ProductBadge = 'NEW' | 'SALE' | 'BESTSELLER' | 'TRENDING';
+
+/** Nested category reference on a product — the storefront filters/links by slug. */
+export class ProductCategoryRefDto {
+  @ApiProperty({ example: 'cuid_cat123' })
+  id!: string;
+
+  @ApiProperty({ example: 'Apparel' })
+  name!: string;
+
+  @ApiProperty({ example: 'apparel', description: 'URL slug; the ?category= filter matches on this' })
+  slug!: string;
+}
 
 /** A product's age (in days) under which the NEW badge applies. */
 const NEW_WINDOW_DAYS = 30;
@@ -62,8 +74,8 @@ export class ProductResponseDto {
   @ApiProperty({ example: 'https://picsum.photos/seed/HOOD-001/600/400' })
   imageUrl!: string;
 
-  @ApiProperty({ example: 'Apparel' })
-  category!: string;
+  @ApiProperty({ type: ProductCategoryRefDto, description: 'The product\'s category' })
+  category!: ProductCategoryRefDto;
 
   @ApiProperty({ example: 60, description: 'Units available' })
   stock!: number;
@@ -160,9 +172,17 @@ function deriveBadges(product: Product, unitsSold: number): ProductBadge[] {
   return badges;
 }
 
-/** Map a Prisma Product row (+ optional loaded relations) to the public response shape. */
+/**
+ * A Product row with its `category` relation loaded — every caller of `toProductResponse` must
+ * `include: { category: true }` so the nested `{ id, name, slug }` reference can be emitted.
+ */
+export type ProductWithCategory = Product & {
+  category: Pick<Category, 'id' | 'name' | 'slug'>;
+};
+
+/** Map a Prisma Product row (+ loaded category, + optional enrichment) to the public shape. */
 export function toProductResponse(
-  product: Product,
+  product: ProductWithCategory,
   enrichment: ProductEnrichment = {},
 ): ProductResponseDto {
   const images =
@@ -188,7 +208,11 @@ export function toProductResponse(
     priceCents: product.priceCents,
     compareAtPriceCents: product.compareAtPriceCents,
     imageUrl: product.imageUrl,
-    category: product.category,
+    category: {
+      id: product.category.id,
+      name: product.category.name,
+      slug: product.category.slug,
+    },
     stock: product.stock,
     images,
     variants,

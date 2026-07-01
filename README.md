@@ -29,7 +29,8 @@ sharing a single API. Built as a timed full-stack assessment.
   (embedded Stripe Payment Element with shipping/billing), saved **addresses**, order history +
   detail, signup/login + **password reset**, profile, settings, and personalized **product
   suggestions**. A **recently-viewed** rail (client-only view history) and a **journal** (CMS blog).
-- **Admin panel** (role-gated): product create/edit/soft-delete, order management with a status
+- **Admin panel** (role-gated): product create/edit/soft-delete, **category management** (create/edit,
+  activate/deactivate, delete when empty), order management with a status
   state machine (`pending → processing → shipped → delivered`, `cancelled` restocks), a dashboard
   (total sales, orders-by-status chart, top sellers) with an accessible data-table fallback for
   the chart, and a **CMS** for the journal (articles with draft/publish), FAQ, static content
@@ -88,8 +89,9 @@ Health check: `curl http://localhost:3001/health` → `{"status":"ok",...}`
 | Admin | `admin@shop.test` | `Admin123!` |
 | Customer | `customer@shop.test` | `Customer123!` |
 
-Seed data also includes 24 products across 5 categories (Apparel, Home, Electronics, Books,
-Outdoors) — a couple on sale and a couple variant-bearing — 5 orders spanning every status, a
+Seed data also includes 24 products across 6 admin-managed categories (Apparel, Home, Electronics,
+Books, Outdoors, Accessories) — a couple on sale and a couple variant-bearing — 5 orders spanning
+every status, a
 populated cart, a few customer reviews, two saved addresses, a 3-item wishlist for the customer,
 and CMS content: 4 published journal articles (one category), 2 FAQ categories, and 5 static
 content blocks (About / Privacy / Terms / Shipping / Returns).
@@ -178,12 +180,15 @@ insufficient stock & inactive-product rollback, snapshot immutability, order own
 admin panel (RBAC on every admin route, product create/edit/activate with duplicate-SKU &
 validation handling, the order state machine with cancellation restock, and analytics
 correctness), and recommendations (purchase-history / cart / top-seller strategies, owned- and
-inactive-product exclusion, related-by-category, and refresh-after-purchase) — **57 e2e tests**.
+inactive-product exclusion, related-by-category, and refresh-after-purchase), and category
+management (public listing/slug lookup, admin CRUD, unique name/slug, slug auto-generation, the
+delete-guard for categories with assigned products, activate/deactivate, and RBAC) — **203 e2e
+tests**.
 
 Fast **unit tests** cover pure logic (the order state-machine transition matrix) and the **Stripe
 webhook handler** (signature rejection, paid-event fulfilment, idempotent duplicate delivery,
 out-of-stock acknowledgement, unrelated/unpaid events) — they run without a database or a live
-Stripe account via `npm test` (20 tests).
+Stripe account via `npm test` (45 tests).
 
 **Frontend tests** (Vitest + Testing Library, jsdom — no server needed):
 
@@ -201,6 +206,10 @@ unauthenticated / error states (15 tests).
 
 Swagger UI documents every route at `/api/docs`. The full surface, grouped by access level:
 
+> **Categories are a first-class, admin-managed entity.** A product's `category` field in API
+> responses is a nested object `{ id, name, slug }` (not a bare string), and the product list
+> filter `?category=` matches on the category **slug**.
+
 ### Public
 
 | Method | Route | Purpose |
@@ -211,9 +220,10 @@ Swagger UI documents every route at `/api/docs`. The full surface, grouped by ac
 | POST | `/auth/logout` | Clear the auth cookie |
 | POST | `/auth/forgot-password` | Request a reset link; always 200, never reveals if the email exists |
 | POST | `/auth/reset-password` | Reset the password with a valid, unused, unexpired token |
-| GET | `/products` | List active products (`search`, `category`, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
-| GET | `/products/categories` | Distinct categories |
+| GET | `/products` | List active products (`search`, `category` = category **slug**, `minPrice`, `maxPrice` in cents, `sort`, `page`, `pageSize`) |
 | GET | `/products/:id` | Single active product incl. gallery/variants/ratings/badges (404 if inactive/missing) |
+| GET | `/categories` | List active categories (ordered, with active-product counts) |
+| GET | `/categories/:slug` | A single active category by slug (404 if inactive/missing) |
 | GET | `/products/:productId/reviews` | A product's reviews, newest first (paginated) |
 | GET | `/reviews/featured` | Top-rated recent reviews across the catalog (`limit`) |
 | GET | `/recommendations` | Suggestions: purchase history → cart → top sellers (personalized if signed in) |
@@ -267,6 +277,13 @@ Swagger UI documents every route at `/api/docs`. The full surface, grouped by ac
 | PATCH | `/admin/products/:id` | Edit a product (SKU immutable) |
 | PATCH | `/admin/products/:id/deactivate` | Soft-delete (deactivate) a product |
 | PATCH | `/admin/products/:id/reactivate` | Reactivate a product |
+| GET | `/admin/categories` | All categories incl. inactive (`search`, status, `sort`, `page`, `pageSize`; with product counts) |
+| GET | `/admin/categories/:id` | A single category incl. inactive |
+| POST | `/admin/categories` | Create a category (409 on duplicate name/slug) |
+| PATCH | `/admin/categories/:id` | Edit a category (409 on duplicate name/slug) |
+| PATCH | `/admin/categories/:id/activate` | Activate (show) a category |
+| PATCH | `/admin/categories/:id/deactivate` | Deactivate (soft-hide) a category |
+| DELETE | `/admin/categories/:id` | Delete a category (409 while products are assigned) |
 | GET | `/admin/orders` | All orders (`status`, customer `search`, `page`, `pageSize`) |
 | PATCH | `/admin/orders/:id/status` | Change status (state-machine enforced; cancel restocks) |
 | GET | `/admin/analytics` | Dashboard: sales, order counts by status, top products, recent orders |

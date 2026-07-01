@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus, Product } from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { toProductResponse } from '../products/dto/product-response.dto';
+import { ProductWithCategory, toProductResponse } from '../products/dto/product-response.dto';
 import {
   RecommendationStrategy,
   RecommendationsResponseDto,
@@ -44,11 +44,11 @@ export class RecommendationsService {
         // --- Priority 2: current cart ---------------------------------------------------
         const cart = await this.prisma.cart.findUnique({
           where: { userId },
-          include: { items: { include: { product: true } } },
+          include: { items: { include: { product: { include: { category: true } } } } },
         });
         const cartItems = cart?.items ?? [];
         const cartCategories = unique(
-          cartItems.filter((i) => i.product.isActive).map((i) => i.product.category),
+          cartItems.filter((i) => i.product.isActive).map((i) => i.product.category.name),
         );
         if (cartCategories.length > 0) {
           const cartProductIds = cartItems.map((i) => i.productId);
@@ -70,10 +70,14 @@ export class RecommendationsService {
 
   /** "You might also like" for a product detail page: other active products in its category. */
   async getRelated(productId: string, limit = DEFAULT_LIMIT): Promise<RecommendationsResponseDto> {
-    const product = await this.prisma.product.findUnique({ where: { id: productId } });
-    if (product) {
+    const source = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { categoryId: true },
+    });
+    if (source) {
       const candidates = await this.prisma.product.findMany({
-        where: { isActive: true, category: product.category, id: { not: productId } },
+        where: { isActive: true, categoryId: source.categoryId, id: { not: productId } },
+        include: { category: true },
       });
       const items = await this.rankByPopularity(candidates, limit);
       if (items.length > 0) {
@@ -88,10 +92,18 @@ export class RecommendationsService {
     };
   }
 
-  /** Active products in the given categories, excluding `excludeIds`, ranked by popularity. */
+  /**
+   * Active products in the given categories (matched by category NAME — the values come from
+   * OrderItem/cart snapshots), excluding `excludeIds`, ranked by popularity.
+   */
   private async popularInCategories(categories: string[], excludeIds: string[], limit: number) {
     const candidates = await this.prisma.product.findMany({
-      where: { isActive: true, category: { in: categories }, id: { notIn: excludeIds } },
+      where: {
+        isActive: true,
+        category: { name: { in: categories } },
+        id: { notIn: excludeIds },
+      },
+      include: { category: true },
     });
     return this.rankByPopularity(candidates, limit);
   }
@@ -115,9 +127,10 @@ export class RecommendationsService {
 
     const products = await this.prisma.product.findMany({
       where: { id: { in: grouped.map((g) => g.productId) }, isActive: true },
+      include: { category: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
-    const ranked: Product[] = [];
+    const ranked: ProductWithCategory[] = [];
     for (const g of grouped) {
       const product = byId.get(g.productId);
       if (product) ranked.push(product);
@@ -129,6 +142,7 @@ export class RecommendationsService {
         where: { isActive: true, id: { notIn: [...have] } },
         orderBy: { createdAt: 'desc' },
         take: limit - ranked.length,
+        include: { category: true },
       });
       ranked.push(...fillers);
     }
@@ -140,7 +154,7 @@ export class RecommendationsService {
    * Order products by units sold (non-cancelled), then newest, then id — fully deterministic.
    * Popularity is fetched in one grouped query for the candidate set.
    */
-  private async rankByPopularity(products: Product[], limit: number) {
+  private async rankByPopularity(products: ProductWithCategory[], limit: number) {
     if (products.length === 0) return [];
     const grouped = await this.prisma.orderItem.groupBy({
       by: ['productId'],

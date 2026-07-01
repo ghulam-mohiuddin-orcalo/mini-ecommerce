@@ -127,8 +127,8 @@ export function Footer() {
   const shopLinks = [
     { label: 'All products', href: '/products' },
     ...(categories ?? []).slice(0, 5).map((category) => ({
-      label: category,
-      href: `/products?category=${encodeURIComponent(category)}`,
+      label: category.name,
+      href: `/products?category=${encodeURIComponent(category.slug)}`,
     })),
   ];
 

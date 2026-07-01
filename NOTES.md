@@ -408,6 +408,57 @@ A breadth pass that layered merchandising depth and content management onto the 
   still has no address columns (the M-checkout assumption is unchanged); these saved addresses are
   not yet wired into the order record.
 
+### Categories become a first-class, admin-managed entity
+A product's category was originally a free-text `String` column, and the "list of categories" was
+just the distinct set of those strings computed at query time (the old `GET /products/categories`).
+That allowed typos and duplicates (`"Electronic"` vs `"Electronics"`), gave admins **no way to
+manage** the taxonomy, and hardcoded per-category presentation in the storefront grid. This refactor
+promotes categories to a real, admin-managed `Category` entity that products reference by FK.
+
+- **Data model.** New `Category` (`id, name @unique, slug @unique, description?, imageUrl?, isActive,
+  sortOrder, createdAt, updatedAt`). `Product.category: String` is **replaced** by a required
+  `categoryId` FK with `onDelete: Restrict` (a DB backstop against orphaning), and the composite
+  catalog index moved from `(isActive, category)` to `(isActive, categoryId)`. The existing CMS
+  `ArticleCategory`/`FaqCategory` models were the near-exact template (slugify / unique-slug /
+  P2002→409), so we mirrored those patterns rather than invent new ones.
+- **Data-preserving migration.** A hand-edited migration backfills with zero loss, in order:
+  create `Category`; add `categoryId` as **nullable**; `INSERT` one `Category` row per
+  `DISTINCT` existing `Product.category` string (name = the old string, derived slug); `UPDATE`
+  every product to point at its category by name; then `SET NOT NULL`, add the FK, and drop the old
+  index + string column. The backfill **must** sit between add-nullable-column and set-NOT-NULL —
+  verified on a scratch/`*test*` DB before touching dev data (see risks below).
+- **Delete semantics (reconciles the spec's "prevent delete" *and* "soft delete").**
+  **Deactivate/Activate** toggles `isActive` — the everyday "hide from the storefront without
+  deleting" path (public reads only ever return active categories). **DELETE** is permanent and
+  returns **409 with a clear message** if any product still references the category; with zero
+  references it hard-deletes (safe, since `categoryId` is required so no orphans are possible).
+- **Endpoint paths follow the repo's security convention, not the spec's literal `POST /categories`.**
+  Every admin write is guarded under `/admin` behind `RolesGuard` + `@Roles(ADMIN)`, matching the
+  products/articles/faq admin controllers. So: public `GET /categories`, `GET /categories/:slug`;
+  admin `GET|POST /admin/categories`, `GET|PATCH|DELETE /admin/categories/:id`, and
+  `PATCH /admin/categories/:id/{activate,deactivate}`.
+- **Category image is a URL string** (`imageUrl?`), not an upload — no upload infra was added,
+  consistent with `Product.imageUrl` and `Article.coverUrl`.
+- **Order history is preserved.** `OrderItem.productCategory` **stays** as a string snapshot; it is
+  now populated at checkout from `product.category.name`. Renaming or removing a category never
+  rewrites historical orders (non-negotiable per CLAUDE.md's snapshot rule).
+- **Product API shape changed (breaking, done in the same change).** A product's `category` is now a
+  nested `{ id, name, slug }` object (relation-loaded) instead of a bare string, and the storefront
+  list filter `?category=` now matches on the **slug** (mirrors articles). All frontend consumers
+  were updated in the same change and gated by typecheck + e2e.
+- **Out of scope, intentionally.** The CMS `ArticleCategory` and `FaqCategory` taxonomies were left
+  **untouched** — they are separate concerns with their own admin CRUD, and conflating them would
+  add churn for no benefit.
+- **Verified:** backend `npm run build` clean; frontend `npm run typecheck` + `npm run build` clean;
+  Jest **45 unit + 203 e2e** green (new `categories.e2e-spec.ts` covers CRUD, unique-name/slug 409,
+  slug auto-gen, delete-blocked-while-products-assigned 409 + message, delete-allowed-when-empty,
+  activate/deactivate, and admin RBAC; product/order/recommendation/admin specs updated for the FK,
+  slug filter, and nested-category shape, plus a migration-integrity assertion that seeded products
+  keep their category after migrate). Runtime, through the Next `/api` proxy: seeded products still
+  show their category; admin can create/edit/activate/deactivate/delete (delete 409s while products
+  are assigned); product create/edit only offers existing categories (no free-text); the home grid
+  and shop filters populate from the DB; `/products?category=<slug>` filters correctly.
+
 ### Password reset — the one intentional stub (delivery only)
 - **The token flow is real; only email *delivery* is stubbed.** This repo ships **no mailer**, so
   there is exactly one intentional stub in the system: the channel that would email the reset link.

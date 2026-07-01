@@ -137,7 +137,7 @@ export default function ProductDetailPage() {
             className="mb-6"
             items={[
               { label: 'Home', href: '/' },
-              { label: product.category, href: `/products?category=${encodeURIComponent(product.category)}` },
+              { label: product.category.name, href: `/products?category=${encodeURIComponent(product.category.slug)}` },
               { label: product.name },
             ]}
           />
@@ -152,7 +152,7 @@ export default function ProductDetailPage() {
             <div className="flex flex-col">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs font-bold uppercase tracking-[0.07em] text-muted">
-                  {product.category}
+                  {product.category.name}
                 </span>
                 <button
                   type="button"

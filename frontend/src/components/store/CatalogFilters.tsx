@@ -7,7 +7,7 @@ import { Rating } from '@/components/ui/Rating';
 import { cn } from '@/lib/cn';
 import { formatPrice } from '@/lib/format';
 import { useDebounce } from '@/lib/hooks/useDebounce';
-import type { ProductQuery } from '@/lib/types';
+import type { Category, ProductQuery } from '@/lib/types';
 
 const centsToDollars = (cents?: number): string =>
   cents === undefined ? '' : String(cents / 100);
@@ -37,7 +37,7 @@ export function CatalogFilters({
   hasActiveFilters,
 }: {
   value: ProductQuery;
-  categories: string[];
+  categories: Category[];
   minRating: number | undefined;
   onChange: (partial: Partial<ProductQuery>) => void;
   onRatingChange: (rating: number | undefined) => void;
@@ -88,9 +88,13 @@ export function CatalogFilters({
     if (document.activeElement !== maxRef.current) setMaxDollars(centsToDollars(value.maxPrice));
   }, [value.maxPrice]);
 
+  // Filter value is the category slug; display the human-readable name where we can resolve it.
+  const categoryName = (slug: string): string =>
+    categories.find((c) => c.slug === slug)?.name ?? slug;
+
   const chips: { key: string; label: string; onRemove: () => void }[] = [];
   if (value.search) chips.push({ key: 'search', label: `“${value.search}”`, onRemove: () => onChange({ search: undefined }) });
-  if (value.category) chips.push({ key: 'category', label: value.category, onRemove: () => onChange({ category: undefined }) });
+  if (value.category) chips.push({ key: 'category', label: categoryName(value.category), onRemove: () => onChange({ category: undefined }) });
   if (value.minPrice !== undefined)
     chips.push({ key: 'min', label: `≥ ${formatPrice(value.minPrice)}`, onRemove: () => onChange({ minPrice: undefined }) });
   if (value.maxPrice !== undefined)
@@ -168,11 +172,11 @@ export function CatalogFilters({
             </button>
           </li>
           {categories.map((c) => {
-            const active = value.category === c;
+            const active = value.category === c.slug;
             return (
-              <li key={c}>
+              <li key={c.id}>
                 <button
-                  onClick={() => onChange({ category: active ? undefined : c })}
+                  onClick={() => onChange({ category: active ? undefined : c.slug })}
                   aria-pressed={active}
                   className={cn(
                     'w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
@@ -181,7 +185,7 @@ export function CatalogFilters({
                       : 'text-ink-soft hover:bg-paper-2 hover:text-ink',
                   )}
                 >
-                  {c}
+                  {c.name}
                 </button>
               </li>
             );

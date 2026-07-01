@@ -27,9 +27,9 @@ export class CartResponseDto {
   @ApiProperty({ description: 'Total units across all lines' }) itemCount!: number;
 }
 
-/** Cart row joined with each line's product and (optional) variant. */
+/** Cart row joined with each line's product (+ its category) and (optional) variant. */
 export type CartWithItems = Prisma.CartGetPayload<{
-  include: { items: { include: { product: true; variant: true } } };
+  include: { items: { include: { product: { include: { category: true } }; variant: true } } };
 }>;
 
 /**
@@ -52,7 +52,7 @@ export function buildCartResponse(cart: CartWithItems | null): CartResponseDto {
       variantLabel: item.variant ? item.variant.label : null,
       name: item.product.name,
       imageUrl: item.product.imageUrl,
-      category: item.product.category,
+      category: item.product.category.name,
       unitPriceCents,
       quantity: item.quantity,
       lineTotalCents: unitPriceCents * item.quantity,

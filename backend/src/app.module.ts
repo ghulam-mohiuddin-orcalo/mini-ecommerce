@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
+import { CategoriesModule } from './categories/categories.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { StripeModule } from './payments/stripe.module';
@@ -35,6 +36,7 @@ import { SiteContentModule } from './site-content/site-content.module';
     AuthModule,
     UsersModule,
     ProductsModule,
+    CategoriesModule,
     CartModule,
     OrdersModule,
     StripeModule,

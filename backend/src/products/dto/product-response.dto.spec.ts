@@ -1,7 +1,7 @@
-import { Product } from '@prisma/client';
 import {
   ProductBadge,
   ProductEnrichment,
+  ProductWithCategory,
   toProductResponse,
 } from './product-response.dto';
 
@@ -19,8 +19,12 @@ import {
 describe('toProductResponse / deriveBadges', () => {
   const DAY_MS = 24 * 60 * 60 * 1000;
 
-  /** Build a Product row with sensible defaults; `createdAt` defaults to "now" (so NEW unless overridden). */
-  const product = (overrides: Partial<Product> = {}): Product => ({
+  /**
+   * Build a Product row (with its loaded `category` relation) and sensible defaults; `createdAt`
+   * defaults to "now" (so NEW unless overridden). `toProductResponse` requires the nested
+   * category `{ id, name, slug }` — the exact shape every caller loads via `include: { category }`.
+   */
+  const product = (overrides: Partial<ProductWithCategory> = {}): ProductWithCategory => ({
     id: 'p1',
     sku: 'SKU-1',
     name: 'Widget',
@@ -28,7 +32,8 @@ describe('toProductResponse / deriveBadges', () => {
     priceCents: 1000,
     compareAtPriceCents: null,
     imageUrl: 'https://img.test/primary.png',
-    category: 'Home',
+    categoryId: 'cat-home',
+    category: { id: 'cat-home', name: 'Home', slug: 'home' },
     stock: 5,
     isActive: true,
     createdAt: new Date(),
@@ -36,7 +41,7 @@ describe('toProductResponse / deriveBadges', () => {
     ...overrides,
   });
 
-  const badgesOf = (p: Product, e: ProductEnrichment = {}): ProductBadge[] =>
+  const badgesOf = (p: ProductWithCategory, e: ProductEnrichment = {}): ProductBadge[] =>
     toProductResponse(p, e).badges;
 
   describe('SALE badge', () => {
@@ -76,7 +81,8 @@ describe('toProductResponse / deriveBadges', () => {
   });
 
   describe('BESTSELLER / TRENDING thresholds (unitsSold)', () => {
-    const old = (): Product => product({ createdAt: new Date(Date.now() - 60 * DAY_MS) }); // drop NEW noise
+    const old = (): ProductWithCategory =>
+      product({ createdAt: new Date(Date.now() - 60 * DAY_MS) }); // drop NEW noise
 
     it('neither below the TRENDING threshold (4 units)', () => {
       const b = badgesOf(old(), { unitsSold: 4 });
@@ -145,6 +151,16 @@ describe('toProductResponse / deriveBadges', () => {
 
     it('is an empty array when the product has no variants', () => {
       expect(toProductResponse(product(), {}).variants).toEqual([]);
+    });
+  });
+
+  describe('category reference', () => {
+    it('emits the nested category object { id, name, slug } (not a bare string)', () => {
+      const res = toProductResponse(
+        product({ categoryId: 'cat-apparel', category: { id: 'cat-apparel', name: 'Apparel', slug: 'apparel' } }),
+      );
+      expect(res.category).toEqual({ id: 'cat-apparel', name: 'Apparel', slug: 'apparel' });
+      expect(typeof res.category).toBe('object');
     });
   });
 

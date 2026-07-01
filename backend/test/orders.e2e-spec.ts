@@ -56,9 +56,12 @@ describe('Orders / checkout (e2e)', () => {
     await prisma.cart.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
 
-    p1 = (await prisma.product.create({ data: { sku: 'O1', name: 'Thing One', description: 'x', priceCents: 1000, imageUrl: 'x', category: 'Home', stock: 10, isActive: true } })).id;
-    p2 = (await prisma.product.create({ data: { sku: 'O2', name: 'Thing Two', description: 'x', priceCents: 500, imageUrl: 'x', category: 'Home', stock: 10, isActive: true } })).id;
+    const homeCat = await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } });
+
+    p1 = (await prisma.product.create({ data: { sku: 'O1', name: 'Thing One', description: 'x', priceCents: 1000, imageUrl: 'x', categoryId: homeCat.id, stock: 10, isActive: true } })).id;
+    p2 = (await prisma.product.create({ data: { sku: 'O2', name: 'Thing Two', description: 'x', priceCents: 500, imageUrl: 'x', categoryId: homeCat.id, stock: 10, isActive: true } })).id;
     cookieA = await signup('buyerA@shop.test');
     cookieB = await signup('buyerB@shop.test');
   });
@@ -129,6 +132,13 @@ describe('Orders / checkout (e2e)', () => {
     expect(res.status).toBe(409);
     expect(await stockOf(p1)).toBe(10);
     expect(await prisma.order.count()).toBe(0);
+  });
+
+  it('snapshots productCategory from the product\'s category name at checkout', async () => {
+    await addToCart(cookieA, p1, 1);
+    const order = (await checkout(cookieA)).body;
+    const item = await prisma.orderItem.findFirstOrThrow({ where: { orderId: order.id } });
+    expect(item.productCategory).toBe('Home'); // the live category name, snapshotted as a string
   });
 
   it('keeps order snapshots unchanged when the product is edited later', async () => {

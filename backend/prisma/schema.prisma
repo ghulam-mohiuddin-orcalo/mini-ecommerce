@@ -67,12 +67,16 @@ model Product {
   // non-null and greater than priceCents — never stored as a badge flag.
   compareAtPriceCents Int?
   imageUrl            String // primary / fallback image; the gallery lives in ProductImage
-  category            String
+  categoryId          String
   stock               Int      @default(0)
   isActive            Boolean  @default(true) // soft-delete flag; false = hidden from catalog
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
+  // Restrict: a category that still has products assigned cannot be hard-deleted — the
+  // DB backstop for the app-level guard (delete a category only when it is empty). Renames
+  // are safe because OrderItem.productCategory snapshots the name at order time.
+  category      Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   cartItems     CartItem[]
   orderItems    OrderItem[]
   images        ProductImage[]
@@ -82,9 +86,25 @@ model Product {
 
   // Catalog queries always scope to active products and then filter/sort by
   // category, price, or recency — these composite indexes back those access paths.
-  @@index([isActive, category])
+  @@index([isActive, categoryId])
   @@index([isActive, createdAt])
   @@index([isActive, priceCents])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique // URL key; also the idempotent seed upsert key
+  description String?
+  imageUrl    String? // optional hero/card image URL (no upload infra — URL only, like Product.imageUrl)
+  isActive    Boolean  @default(true) // soft-hide from storefront without deleting
+  sortOrder   Int      @default(0) // ascending display order in the storefront grid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products Product[]
+
+  @@index([isActive, sortOrder])
 }
 
 model ProductImage {

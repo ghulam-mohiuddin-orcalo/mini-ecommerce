@@ -67,12 +67,16 @@ describe('Orders with variants (e2e)', () => {
     await prisma.order.deleteMany();
     await prisma.productVariant.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
     await prisma.user.deleteMany();
+
+    const apparelCat = await prisma.category.create({ data: { name: 'Apparel', slug: 'apparel', isActive: true } });
+    const homeCat = await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } });
 
     const product = await prisma.product.create({
       data: {
         sku: 'OV-1', name: 'Variant Hoodie', description: 'x', priceCents: PRODUCT_PRICE,
-        imageUrl: 'x', category: 'Apparel', stock: PRODUCT_STOCK, isActive: true,
+        imageUrl: 'x', categoryId: apparelCat.id, stock: PRODUCT_STOCK, isActive: true,
         variants: { create: [{ sku: 'OV-1-M', label: 'Medium', size: 'M', priceCents: VAR_PRICE, stock: VAR_STOCK, isActive: true }] },
       },
       include: { variants: true },
@@ -82,7 +86,7 @@ describe('Orders with variants (e2e)', () => {
 
     plainId = (
       await prisma.product.create({
-        data: { sku: 'OV-2', name: 'Plain Mug', description: 'x', priceCents: 1200, imageUrl: 'x', category: 'Home', stock: PLAIN_STOCK, isActive: true },
+        data: { sku: 'OV-2', name: 'Plain Mug', description: 'x', priceCents: 1200, imageUrl: 'x', categoryId: homeCat.id, stock: PLAIN_STOCK, isActive: true },
       })
     ).id;
 

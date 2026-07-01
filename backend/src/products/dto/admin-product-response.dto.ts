@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Product, ProductImage, ProductVariant } from '@prisma/client';
+import { Category, Product, ProductImage, ProductVariant } from '@prisma/client';
+
+/** Nested category reference on an admin product row. */
+export class AdminProductCategoryRefDto {
+  @ApiProperty({ example: 'cuid_cat123' }) id!: string;
+  @ApiProperty({ example: 'Apparel' }) name!: string;
+  @ApiProperty({ example: 'apparel' }) slug!: string;
+}
 
 /** Admin view of a gallery image — includes id/position so the UI can manage ordering. */
 export class AdminProductImageDto {
@@ -32,7 +39,7 @@ export class AdminProductResponseDto {
   @ApiProperty({ nullable: true, type: Number, description: 'Strike-through price in cents' })
   compareAtPriceCents!: number | null;
   @ApiProperty() imageUrl!: string;
-  @ApiProperty() category!: string;
+  @ApiProperty({ type: AdminProductCategoryRefDto }) category!: AdminProductCategoryRefDto;
   @ApiProperty() stock!: number;
   @ApiProperty() isActive!: boolean;
   @ApiProperty({ type: AdminProductImageDto, isArray: true }) images!: AdminProductImageDto[];
@@ -47,8 +54,9 @@ export class PaginatedAdminProductsDto {
   meta!: { page: number; pageSize: number; total: number; totalPages: number };
 }
 
-/** A product row with its gallery + variants loaded (the shape admin queries return). */
+/** A product row with its category (+ gallery + variants) loaded (the shape admin queries return). */
 type AdminProductInput = Product & {
+  category: Pick<Category, 'id' | 'name' | 'slug'>;
   images?: ProductImage[];
   variants?: ProductVariant[];
 };
@@ -62,7 +70,11 @@ export function toAdminProductResponse(product: AdminProductInput): AdminProduct
     priceCents: product.priceCents,
     compareAtPriceCents: product.compareAtPriceCents,
     imageUrl: product.imageUrl,
-    category: product.category,
+    category: {
+      id: product.category.id,
+      name: product.category.name,
+      slug: product.category.slug,
+    },
     stock: product.stock,
     isActive: product.isActive,
     images: (product.images ?? []).map((image) => ({

@@ -17,7 +17,7 @@ export class ProductQueryDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Exact category match', maxLength: 50 })
+  @ApiPropertyOptional({ description: 'Filter by category slug (exact match)', maxLength: 50 })
   @IsOptional()
   @IsString()
   @MaxLength(50)

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch, toQueryString } from '@/lib/api';
-import type { Paginated, Product, ProductQuery } from '@/lib/types';
+import type { Category, Paginated, Product, ProductQuery } from '@/lib/types';
 
 export function useProducts(query: ProductQuery) {
   return useQuery({
@@ -41,10 +41,11 @@ export function useBestSellers(limit = 4, windowDays = 90) {
   });
 }
 
+/** Public, active categories (ordered sortOrder→name) with product counts. */
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: () => apiFetch<string[]>('/products/categories'),
+    queryFn: () => apiFetch<Category[]>('/categories'),
     staleTime: 5 * 60 * 1000,
   });
 }

@@ -63,10 +63,13 @@ describe('Wishlist (e2e)', () => {
     await prisma.order.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
 
-    p1 = (await prisma.product.create({ data: { sku: 'WL-1', name: 'Wish One', description: 'x', priceCents: 1000, imageUrl: 'x', category: 'Home', stock: 5, isActive: true } })).id;
-    p2 = (await prisma.product.create({ data: { sku: 'WL-2', name: 'Wish Two', description: 'x', priceCents: 2000, imageUrl: 'x', category: 'Home', stock: 5, isActive: true } })).id;
-    inactiveId = (await prisma.product.create({ data: { sku: 'WL-3', name: 'Gone', description: 'x', priceCents: 500, imageUrl: 'x', category: 'Home', stock: 5, isActive: false } })).id;
+    const homeCat = await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } });
+
+    p1 = (await prisma.product.create({ data: { sku: 'WL-1', name: 'Wish One', description: 'x', priceCents: 1000, imageUrl: 'x', categoryId: homeCat.id, stock: 5, isActive: true } })).id;
+    p2 = (await prisma.product.create({ data: { sku: 'WL-2', name: 'Wish Two', description: 'x', priceCents: 2000, imageUrl: 'x', categoryId: homeCat.id, stock: 5, isActive: true } })).id;
+    inactiveId = (await prisma.product.create({ data: { sku: 'WL-3', name: 'Gone', description: 'x', priceCents: 500, imageUrl: 'x', categoryId: homeCat.id, stock: 5, isActive: false } })).id;
 
     const a = await signup('wishA@shop.test');
     cookieA = authCookie(a);

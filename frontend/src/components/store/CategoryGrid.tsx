@@ -2,48 +2,15 @@
 
 import Link from 'next/link';
 import { useCategories } from '@/lib/hooks/useProducts';
+import { categoryPresentation } from '@/lib/categoryPresentation';
 import { SectionHeader } from '@/components/store/SectionHeader';
 
 /* ----------------------------------------------------------------------------
- * Verdant "Shop by category" — a 1:1 port of the HTML reference. Tall 3:4 cards
- * with a soft per-category radial gradient, a large faded serif initial bottom-
- * right, and the name + blurb bottom-left. Styling is inline (static) + `v-cat-*`
- * classes in globals.css (hover/focus/responsive), all keyed off the reference
- * design variables.
- *
- * The cards are driven by REAL backend categories (useCategories) — names and
- * routing are dynamic. The gradient tone + one-line blurb are presentational
- * (the API has no such field): a name-keyed map supplies them, with a graceful
- * fallback (palette cycled by index, generic blurb) for any unknown category.
+ * Verdant "Shop by category" — tall 3:4 cards. Each card is driven entirely by the
+ * DB category (name, description, imageUrl). Presentation fallbacks (gradient tone +
+ * generic blurb when there's no imageUrl/description) come from
+ * `lib/categoryPresentation.ts`. Cards link to /products?category=<slug>.
  * -------------------------------------------------------------------------- */
-
-/** Warm pastel tones, mirrored from the reference palette. */
-const PALETTE = ['#3F7D5B', '#B98A5E', '#C99A3E', '#9E8C6A', '#6F8A82'];
-
-/** Per-category gradient tone + blurb. Keyed by lowercased category name. */
-const META: Record<string, { tone: string; blurb: string }> = {
-  // Reference categories (exact tones + blurbs).
-  plants: { tone: '#3F7D5B', blurb: 'Living greenery, delivered' },
-  ceramics: { tone: '#B98A5E', blurb: 'Hand-thrown stoneware' },
-  fragrance: { tone: '#C99A3E', blurb: 'Candles & incense' },
-  textiles: { tone: '#9E8C6A', blurb: 'Linen & wool, woven slow' },
-  objects: { tone: '#6F8A82', blurb: 'Tools & quiet decor' },
-  // Live seed categories — one tone each, drawn from the same pastel palette.
-  electronics: { tone: '#6F8A82', blurb: 'Considered tech & tools' },
-  apparel: { tone: '#9E8C6A', blurb: 'Slow-made everyday wear' },
-  home: { tone: '#B98A5E', blurb: 'Calm for every room' },
-  outdoors: { tone: '#3F7D5B', blurb: 'For the open air' },
-  books: { tone: '#C99A3E', blurb: 'Words worth keeping' },
-};
-
-/** The reference card gradient — `tone` blended into the surface tones. */
-function art(tone: string): string {
-  return `radial-gradient(120% 120% at 35% 25%, color-mix(in oklab, ${tone} 32%, var(--surface)) 0%, var(--surface2) 56%, color-mix(in oklab, ${tone} 12%, var(--surface2)) 100%)`;
-}
-
-function metaFor(name: string, index: number): { tone: string; blurb: string } {
-  return META[name.toLowerCase()] ?? { tone: PALETTE[index % PALETTE.length], blurb: 'Explore the collection' };
-}
 
 export function CategoryGrid() {
   const { data: categories = [], isLoading } = useCategories();
@@ -67,31 +34,36 @@ export function CategoryGrid() {
               />
             ))
           : categories.map((cat, i) => {
-              const { tone, blurb } = metaFor(cat, i);
-              const initial = cat.charAt(0).toUpperCase();
+              const { imageUrl, gradient, blurb, initial } = categoryPresentation(cat, i);
               return (
                 <Link
-                  key={cat}
-                  href={`/products?category=${encodeURIComponent(cat)}`}
+                  key={cat.id}
+                  href={`/products?category=${encodeURIComponent(cat.slug)}`}
                   className="v-cat-card"
-                  style={{ background: art(tone) }}
+                  style={{
+                    background: imageUrl
+                      ? `linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%), url(${imageUrl}) center/cover no-repeat`
+                      : gradient,
+                  }}
                 >
-                  {/* Large faded decorative initial, bottom-right */}
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      bottom: -6,
-                      fontFamily: "'Newsreader',serif",
-                      fontSize: 130,
-                      lineHeight: 1,
-                      color: 'var(--ink)',
-                      opacity: 0.08,
-                    }}
-                  >
-                    {initial}
-                  </span>
+                  {/* Large faded decorative initial, bottom-right — only over the gradient art. */}
+                  {!imageUrl && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        bottom: -6,
+                        fontFamily: "'Newsreader',serif",
+                        fontSize: 130,
+                        lineHeight: 1,
+                        color: 'var(--ink)',
+                        opacity: 0.08,
+                      }}
+                    >
+                      {initial}
+                    </span>
+                  )}
                   {/* Name + blurb, bottom-left */}
                   <span style={{ position: 'absolute', left: 18, right: 18, bottom: 18 }}>
                     <span
@@ -99,12 +71,19 @@ export function CategoryGrid() {
                         display: 'block',
                         fontFamily: "'Newsreader',serif",
                         fontSize: 22,
-                        color: 'var(--ink)',
+                        color: imageUrl ? '#fff' : 'var(--ink)',
                       }}
                     >
-                      {cat}
+                      {cat.name}
                     </span>
-                    <span style={{ display: 'block', fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 12.5,
+                        color: imageUrl ? 'rgba(255,255,255,0.82)' : 'var(--muted)',
+                        marginTop: 2,
+                      }}
+                    >
                       {blurb}
                     </span>
                   </span>

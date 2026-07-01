@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { Input, fieldClasses } from '@/components/ui/Input';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
 import { ApiError } from '@/lib/api';
@@ -13,7 +13,9 @@ import {
   type ProductInput,
   type ProductVariantInput,
 } from '@/lib/hooks/useAdmin';
-import type { AdminProduct } from '@/lib/types';
+import { useAllAdminCategories } from '@/lib/hooks/useAdminCategories';
+import { useMe } from '@/lib/hooks/useAuth';
+import type { AdminProduct, Category } from '@/lib/types';
 
 const dollarsToCents = (s: string): number => Math.round(Number(s) * 100);
 const centsToDollars = (c: number): string => (c / 100).toFixed(2);
@@ -79,7 +81,7 @@ export function AdminProductForm({
     compareAtDollars:
       product?.compareAtPriceCents != null ? centsToDollars(product.compareAtPriceCents) : '',
     imageUrl: product?.imageUrl ?? '',
-    category: product?.category ?? '',
+    categoryId: product?.category.id ?? '',
     stock: product ? String(product.stock) : '',
   });
   const [images, setImages] = useState<ImageRow[]>(() => imageRowsFrom(product));
@@ -138,7 +140,7 @@ export function AdminProductForm({
       compareAtPriceCents:
         form.compareAtDollars.trim() === '' ? null : dollarsToCents(form.compareAtDollars),
       imageUrl: form.imageUrl,
-      category: form.category,
+      categoryId: form.categoryId,
       stock: Number(form.stock),
       images: imagePayload,
       variants: variantPayload,
@@ -193,7 +195,10 @@ export function AdminProductForm({
           <Input type="number" min={0} value={form.stock} onChange={set('stock')} required />
         </Field>
         <Field label="Category" className="sm:col-span-2">
-          <Input value={form.category} onChange={set('category')} required />
+          <CategorySelect
+            value={form.categoryId}
+            onChange={(id) => setForm((f) => ({ ...f, categoryId: id }))}
+          />
         </Field>
         <Field label="Image URL">
           <Input type="url" value={form.imageUrl} onChange={set('imageUrl')} required placeholder="https://…" />
@@ -374,6 +379,149 @@ export function AdminProductForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Searchable, keyboard-accessible category picker. Admins may only choose an existing
+ * category (no free-text). Selection is submitted as `categoryId`. A visually-hidden
+ * `required` input mirrors the chosen id so native form validation blocks empty submits.
+ */
+function CategorySelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const { data: user } = useMe();
+  const { data: categories = [], isLoading } = useAllAdminCategories(user?.role === 'ADMIN');
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+
+  const selected = useMemo(
+    () => categories.find((c) => c.id === value) ?? null,
+    [categories, value],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return categories;
+    return categories.filter((c) => c.name.toLowerCase().includes(q));
+  }, [categories, query]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
+
+  const commit = (category: Category) => {
+    onChange(category.id);
+    setQuery('');
+    setOpen(false);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setOpen(true);
+      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      if (open && filtered[activeIndex]) {
+        e.preventDefault();
+        commit(filtered[activeIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  const displayText = open ? query : selected?.name ?? '';
+
+  return (
+    <div ref={rootRef} className="relative">
+      <input
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        autoComplete="off"
+        placeholder={isLoading ? 'Loading categories…' : 'Search categories…'}
+        value={displayText}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onKeyDown={onKeyDown}
+        className={cn(fieldClasses, 'cursor-text')}
+      />
+      {/* Mirrors the chosen id so the native `required` gate blocks an empty submit. */}
+      <input
+        type="text"
+        required
+        tabIndex={-1}
+        aria-hidden="true"
+        value={value}
+        onChange={() => undefined}
+        className="pointer-events-none absolute bottom-0 left-3 h-0 w-px opacity-0"
+      />
+      {open && (
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-surface p-1 shadow-soft"
+        >
+          {filtered.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted">
+              {isLoading ? 'Loading…' : 'No categories found'}
+            </li>
+          ) : (
+            filtered.map((c, i) => {
+              const isSelected = c.id === value;
+              const isActive = i === activeIndex;
+              return (
+                <li
+                  key={c.id}
+                  role="option"
+                  aria-selected={isSelected}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    commit(c);
+                  }}
+                  className={cn(
+                    'flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-sm',
+                    isActive ? 'bg-brand-50 text-ink' : 'text-ink-soft',
+                    !c.isActive && 'opacity-60',
+                  )}
+                >
+                  <span className="font-semibold">{c.name}</span>
+                  {!c.isActive && <span className="text-[11px] text-muted">Inactive</span>}
+                </li>
+              );
+            })
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 

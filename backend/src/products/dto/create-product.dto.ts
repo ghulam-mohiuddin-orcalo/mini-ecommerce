@@ -118,10 +118,10 @@ export class CreateProductDto {
   @MaxLength(2000)
   imageUrl!: string;
 
-  @ApiProperty({ example: 'Apparel' })
+  @ApiProperty({ example: 'clx1a2b3c4d5e6f7g8h9i0j', description: 'Id of an existing category' })
   @IsString()
-  @Length(1, 50)
-  category!: string;
+  @Length(1, 64)
+  categoryId!: string;
 
   @ApiProperty({ example: 100, description: 'Units in stock' })
   @IsInt()

@@ -18,6 +18,7 @@ describe('Admin (e2e)', () => {
   let custCookie = '';
   let custId = '';
   let p1 = '';
+  let homeCatId = '';
 
   const authCookie = (res: request.Response): string => {
     const arr = (res.headers['set-cookie'] as unknown as string[]) ?? [];
@@ -71,6 +72,9 @@ describe('Admin (e2e)', () => {
     await prisma.cart.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
+
+    homeCatId = (await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } })).id;
 
     await prisma.user.create({
       data: { email: 'admin@a.test', name: 'Admin', role: Role.ADMIN, passwordHash: await bcrypt.hash('Admin123!', 12) },
@@ -82,14 +86,16 @@ describe('Admin (e2e)', () => {
     custId = cust.body.id;
     adminCookie = await login('admin@a.test', 'Admin123!');
 
-    p1 = (await prisma.product.create({ data: { sku: 'A1', name: 'P One', description: 'x', priceCents: 1000, imageUrl: 'https://x.com/i.png', category: 'Home', stock: 10, isActive: true } })).id;
+    p1 = (await prisma.product.create({ data: { sku: 'A1', name: 'P One', description: 'x', priceCents: 1000, imageUrl: 'https://x.com/i.png', categoryId: homeCatId, stock: 10, isActive: true } })).id;
   });
 
   afterAll(async () => {
-    // Clean up the orders this suite created so a later suite's user.deleteMany()
-    // isn't blocked by the Order→User Restrict FK (suites share one test DB).
+    // Clean up the rows this suite created so a later suite's cleanup isn't blocked by FKs
+    // (suites share one test DB; Order→User is Restrict, Product→Category is Restrict).
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany();
+    await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
     await app.close();
   });
 
@@ -114,17 +120,23 @@ describe('Admin (e2e)', () => {
       const create = await request(app.getHttpServer())
         .post('/admin/products')
         .set('Cookie', adminCookie)
-        .send({ sku: 'NEW-1', name: 'New', description: 'd', priceCents: 500, imageUrl: 'https://x.com/i.png', category: 'Home', stock: 4 });
+        .send({ sku: 'NEW-1', name: 'New', description: 'd', priceCents: 500, imageUrl: 'https://x.com/i.png', categoryId: homeCatId, stock: 4 });
       expect(create.status).toBe(201);
+      expect(create.body.category).toMatchObject({ id: homeCatId, name: 'Home', slug: 'home' });
       const id = create.body.id;
 
       expect(
-        (await request(app.getHttpServer()).post('/admin/products').set('Cookie', adminCookie).send({ sku: 'NEW-1', name: 'Dup', description: 'd', priceCents: 1, imageUrl: 'https://x.com/i.png', category: 'Home', stock: 1 })).status,
+        (await request(app.getHttpServer()).post('/admin/products').set('Cookie', adminCookie).send({ sku: 'NEW-1', name: 'Dup', description: 'd', priceCents: 1, imageUrl: 'https://x.com/i.png', categoryId: homeCatId, stock: 1 })).status,
       ).toBe(409);
 
       expect(
-        (await request(app.getHttpServer()).post('/admin/products').set('Cookie', adminCookie).send({ sku: 'BAD', name: 'x', description: 'd', priceCents: -1, imageUrl: 'not-a-url', category: 'Home', stock: 1 })).status,
+        (await request(app.getHttpServer()).post('/admin/products').set('Cookie', adminCookie).send({ sku: 'BAD', name: 'x', description: 'd', priceCents: -1, imageUrl: 'not-a-url', categoryId: homeCatId, stock: 1 })).status,
       ).toBe(422);
+
+      // Unknown categoryId → 404 (the service validates the FK before writing).
+      expect(
+        (await request(app.getHttpServer()).post('/admin/products').set('Cookie', adminCookie).send({ sku: 'NO-CAT', name: 'x', description: 'd', priceCents: 100, imageUrl: 'https://x.com/i.png', categoryId: 'does-not-exist', stock: 1 })).status,
+      ).toBe(404);
 
       const edit = await request(app.getHttpServer()).patch(`/admin/products/${id}`).set('Cookie', adminCookie).send({ priceCents: 750, stock: 9 });
       expect(edit.body).toMatchObject({ priceCents: 750, stock: 9 });

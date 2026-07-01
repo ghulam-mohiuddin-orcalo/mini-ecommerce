@@ -105,7 +105,7 @@ export default function AdminProductsPage() {
                       </div>
                     </td>
                     <td className="px-[18px] py-3 tabular-nums text-muted">{p.sku}</td>
-                    <td className="px-[18px] py-3 text-ink-soft">{p.category}</td>
+                    <td className="px-[18px] py-3 text-ink-soft">{p.category.name}</td>
                     <td className="px-[18px] py-3 font-bold tabular-nums text-ink">{formatPrice(p.priceCents)}</td>
                     <td className="px-[18px] py-3 font-semibold tabular-nums text-ink">{p.stock}</td>
                     <td className="px-[18px] py-3">

@@ -76,11 +76,17 @@ describe('Recommendations (e2e)', () => {
     await prisma.cart.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
 
-    const mk = async (sku: string, category: string, isActive = true) =>
+    const categoryId: Record<string, string> = {
+      Apparel: (await prisma.category.create({ data: { name: 'Apparel', slug: 'apparel', isActive: true } })).id,
+      Home: (await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } })).id,
+    };
+
+    const mk = async (sku: string, category: 'Apparel' | 'Home', isActive = true) =>
       (
         await prisma.product.create({
-          data: { sku, name: sku, description: 'x', priceCents: 1000, imageUrl: 'https://x.com/i.png', category, stock: 50, isActive },
+          data: { sku, name: sku, description: 'x', priceCents: 1000, imageUrl: 'https://x.com/i.png', categoryId: categoryId[category], stock: 50, isActive },
         })
       ).id;
     a1 = await mk('A1', 'Apparel');

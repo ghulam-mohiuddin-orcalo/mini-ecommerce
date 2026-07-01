@@ -19,14 +19,6 @@ export class ProductsController {
     return this.productsService.findMany(query);
   }
 
-  // NOTE: declared before ':id' so "categories" isn't captured as an id param.
-  @Get('categories')
-  @ApiOperation({ summary: 'List distinct categories of active products' })
-  @ApiOkResponse({ type: String, isArray: true })
-  listCategories(): Promise<string[]> {
-    return this.productsService.listCategories();
-  }
-
   @Get('best-sellers')
   @ApiOperation({ summary: 'List active best-selling products from real paid orders' })
   @ApiOkResponse({ type: ProductResponseDto, isArray: true })

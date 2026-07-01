@@ -6,7 +6,10 @@ import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { buildCartResponse, CartResponseDto, CartWithItems } from './dto/cart-response.dto';
 
 const CART_INCLUDE = {
-  items: { include: { product: true, variant: true }, orderBy: { createdAt: 'asc' } },
+  items: {
+    include: { product: { include: { category: true } }, variant: true },
+    orderBy: { createdAt: 'asc' },
+  },
 } satisfies Prisma.CartInclude;
 
 @Injectable()

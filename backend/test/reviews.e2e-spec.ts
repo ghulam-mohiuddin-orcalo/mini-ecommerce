@@ -76,10 +76,13 @@ describe('Reviews (e2e)', () => {
     await prisma.cart.deleteMany();
     await prisma.user.deleteMany();
     await prisma.product.deleteMany();
+    await prisma.category.deleteMany();
 
-    purchasedId = (await prisma.product.create({ data: { sku: 'RV-1', name: 'Bought', description: 'x', priceCents: 1000, imageUrl: 'x', category: 'Home', stock: 10, isActive: true } })).id;
-    notPurchasedId = (await prisma.product.create({ data: { sku: 'RV-2', name: 'Unbought', description: 'x', priceCents: 1000, imageUrl: 'x', category: 'Home', stock: 10, isActive: true } })).id;
-    inactiveId = (await prisma.product.create({ data: { sku: 'RV-3', name: 'Gone', description: 'x', priceCents: 1000, imageUrl: 'x', category: 'Home', stock: 10, isActive: false } })).id;
+    const homeCat = await prisma.category.create({ data: { name: 'Home', slug: 'home', isActive: true } });
+
+    purchasedId = (await prisma.product.create({ data: { sku: 'RV-1', name: 'Bought', description: 'x', priceCents: 1000, imageUrl: 'x', categoryId: homeCat.id, stock: 10, isActive: true } })).id;
+    notPurchasedId = (await prisma.product.create({ data: { sku: 'RV-2', name: 'Unbought', description: 'x', priceCents: 1000, imageUrl: 'x', categoryId: homeCat.id, stock: 10, isActive: true } })).id;
+    inactiveId = (await prisma.product.create({ data: { sku: 'RV-3', name: 'Gone', description: 'x', priceCents: 1000, imageUrl: 'x', categoryId: homeCat.id, stock: 10, isActive: false } })).id;
 
     const buyer = await signup('reviewbuyer@shop.test');
     buyerCookie = authCookie(buyer);

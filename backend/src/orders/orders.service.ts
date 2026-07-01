@@ -80,7 +80,10 @@ export class OrdersService {
       for (const item of cart.items) {
         // Re-read from the DB — never trust the cart's implied price/availability. The parent
         // product is always the source of the name/image/category snapshot, even for variants.
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+          include: { category: true },
+        });
         if (!product || !product.isActive) {
           throw new ConflictException(
             `"${product?.name ?? 'A product in your cart'}" is no longer available`,
@@ -114,7 +117,7 @@ export class OrdersService {
             productId: product.id,
             productName: product.name,
             productImageUrl: product.imageUrl,
-            productCategory: product.category,
+            productCategory: product.category.name,
             variantId: variant.id,
             variantLabel: variant.label,
             unitPriceCents,
@@ -143,7 +146,7 @@ export class OrdersService {
           productId: product.id,
           productName: product.name,
           productImageUrl: product.imageUrl,
-          productCategory: product.category,
+          productCategory: product.category.name,
           variantId: null,
           variantLabel: null,
           unitPriceCents,

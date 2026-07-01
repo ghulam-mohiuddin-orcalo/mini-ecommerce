@@ -33,8 +33,13 @@ coherent over complete**. Breadth that connects end-to-end beats depth in one co
   **server-side only**, from authoritative DB values.
 - **Stock decrement is transactional + atomic** (conditional decrement inside a Prisma
   transaction). Over-ordering returns 409 and changes nothing.
-- **Order line items snapshot** product name + unit price at order time so historical orders
-  survive product edits/deletes. Products are **soft-deleted** (`isActive=false`).
+- **Order line items snapshot** product name + unit price + category name at order time so historical
+  orders survive product edits/deletes. Products are **soft-deleted** (`isActive=false`).
+- **Product categories are a first-class, admin-managed `Category` entity** (`Product.categoryId` FK,
+  `onDelete: Restrict`; unique `name`/`slug`; `isActive` for soft-hide). Managed under
+  `/admin/categories` (RolesGuard); public reads (`/categories`) return active only. Distinct from
+  the CMS `ArticleCategory`/`FaqCategory` taxonomies. The product `category` field in API responses
+  is a nested `{ id, name, slug }`; the `?category=` list filter matches the **slug**.
 - **AuthZ:** `RolesGuard` + `@Roles(Role.ADMIN)` on every admin route. Customer resources are
   filtered by the authenticated user id and ownership-checked on fetch-by-id (no IDOR).
 - Consistent error shape via a global exception filter; correct HTTP status codes; never leak
